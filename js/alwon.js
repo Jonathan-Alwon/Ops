@@ -108,13 +108,13 @@
 
     return `
       <aside class="sidebar">
-        <div class="sidebar-brand">
+        <a class="sidebar-brand" href="/" aria-label="ALWON OS · home">
           <div class="mark"></div>
           <div class="wordmark">
             <span class="name">ALWON OS</span>
             <span class="sub">v0.9.4 · ops</span>
           </div>
-        </div>
+        </a>
         <div class="sidebar-scroll">${navHtml}</div>
         <div class="sidebar-footer">
           <div class="avatar">JJ</div>
