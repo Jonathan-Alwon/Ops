@@ -301,11 +301,12 @@
           <div class="panel-head">
             <span class="label">CH 4</span>
             <span class="title">Operational surfaces</span>
-            <span class="pill ghost dim">12 surfaces</span>
+            <span class="pill ghost dim">13 surfaces</span>
             <div class="right"><span class="dim mono">⌘K · open by name</span></div>
           </div>
           <div class="launcher">
-            ${tile({ icon: 'grid', head: 'OVERVIEW',  title: 'Dashboard',     desc: 'Realtime operational command surface · KPI strip, throughput, alerts, cams.', href: 'dashboard.html',   dot: 'ok',   lbl: 'live',         val: '298 tx/h' })}
+            ${tile({ icon: 'grid', head: 'OVERVIEW',  title: 'Dashboard · Ops', desc: 'Realtime operational command surface · KPI strip, throughput, alerts, cams.', href: 'dashboard.html',         dot: 'ok',   lbl: 'live',         val: '298 tx/h' })}
+            ${tile({ icon: 'chart',head: 'OVERVIEW',  title: 'Dashboard · Manage', desc: 'Executive · fleet revenue, margin, AOV, store ranking, anomalies, forecast.', href: 'dashboard-manage.html', dot: 'ok',   lbl: 'MTD',          val: '$ 1.482M' })}
             ${tile({ icon: 'pulse',head: 'OVERVIEW',  title: 'Events',        desc: 'SIEM-style telemetry stream · severity + family filters · ws tail.',         href: 'events.html',      dot: 'ok',   lbl: 'streaming',    val: '23.7/s' })}
             ${tile({ icon: 'alert',head: 'OVERVIEW',  title: 'Incidents',     desc: 'Live queue · auto-rules + runbooks · SLA tracking, MTTA + MTTR.',           href: 'incidents.html',   dot: 'crit', lbl: 'open',         val: '5', tone: 'crit' })}
             ${tile({ icon: 'wave', head: 'OVERVIEW',  title: 'Observability', desc: 'Topology, SLOs, edge fleet, ingest pipeline, webhooks, latency heatmap.',  href: 'observability.html',dot: 'ok',   lbl: 'nominal',      val: '99.97%' })}

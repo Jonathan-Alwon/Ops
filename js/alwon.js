@@ -7,9 +7,10 @@
     {
       group: 'OVERVIEW',
       items: [
-        { id: 'dashboard',     label: 'Dashboard',     href: 'dashboard.html',     icon: 'grid' },
-        { id: 'events',        label: 'Events',        href: 'events.html',        icon: 'pulse',  meta: '24/s',  metaTone: '' },
-        { id: 'incidents',     label: 'Incidents',     href: 'incidents.html',     icon: 'alert',  meta: '3',     metaTone: 'crit' },
+        { id: 'dashboard',      label: 'Dashboard · Ops',    href: 'dashboard.html',         icon: 'grid' },
+        { id: 'dashboard-mgmt', label: 'Dashboard · Manage', href: 'dashboard-manage.html',  icon: 'chart' },
+        { id: 'events',         label: 'Events',             href: 'events.html',            icon: 'pulse',  meta: '24/s', metaTone: '' },
+        { id: 'incidents',      label: 'Incidents',          href: 'incidents.html',         icon: 'alert',  meta: '3',    metaTone: 'crit' },
       ],
     },
     {
@@ -64,6 +65,7 @@
     arrow_down:'<path d="M10 6v8M14 11l-4 4-4-4"/>',
     download:'<path d="M10 3v10M6 9l4 4 4-4M3 16h14"/>',
     dot_more:'<circle cx="5" cy="10" r="1"/><circle cx="10" cy="10" r="1"/><circle cx="15" cy="10" r="1"/>',
+    chart:  '<path d="M3 17h14"/><path d="M5 14v3M9 10v7M13 6v11M17 12v5"/>',
   };
 
   function icon(name, cls = '') {
@@ -213,7 +215,8 @@
           </div>
           <div class="cmdk-results">
             <div class="cmdk-group">JUMP TO</div>
-            <div class="cmdk-row" data-href="dashboard.html"><span class="cmdk-icon">${icon('grid')}</span><span>Dashboard · operational command surface</span><span class="cmdk-kbd">G D</span></div>
+            <div class="cmdk-row" data-href="dashboard.html"><span class="cmdk-icon">${icon('grid')}</span><span>Dashboard · Ops · operational command surface</span><span class="cmdk-kbd">G D</span></div>
+            <div class="cmdk-row" data-href="dashboard-manage.html"><span class="cmdk-icon">${icon('chart')}</span><span>Dashboard · Manage · executive · fleet performance</span><span class="cmdk-kbd">G M</span></div>
             <div class="cmdk-row" data-href="events.html"><span class="cmdk-icon">${icon('pulse')}</span><span>Events · realtime telemetry stream</span><span class="cmdk-kbd">G E</span></div>
             <div class="cmdk-row" data-href="observability.html"><span class="cmdk-icon">${icon('wave')}</span><span>Observability · infra runtime</span><span class="cmdk-kbd">G O</span></div>
             <div class="cmdk-row" data-href="incidents.html"><span class="cmdk-icon">${icon('alert')}</span><span>Incidents · queue</span><span class="cmdk-kbd">G I</span></div>

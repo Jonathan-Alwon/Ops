@@ -1,0 +1,1008 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=1440, initial-scale=1" />
+  <title>ALWON OS · Dashboard · Manage · Fleet</title>
+  <link rel="stylesheet" href="./css/alwon.css" />
+  <style>
+    /* Period selector — compact pill row, operational not marketing */
+    .period-row {
+      display: flex; align-items: center; gap: 1px;
+      background: var(--border-1);
+      border: 1px solid var(--border-1);
+      border-radius: 3px;
+      padding: 0;
+      font-family: var(--font-mono);
+    }
+    .period-row button {
+      background: var(--bg-1);
+      color: var(--fg-2);
+      border: 0;
+      padding: 5px 12px;
+      font-family: var(--font-mono);
+      font-size: var(--t-10);
+      letter-spacing: 0.10em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background 80ms, color 80ms;
+    }
+    .period-row button:hover { color: var(--fg-0); background: var(--bg-2); }
+    .period-row button.active {
+      background: var(--bg-3);
+      color: var(--signal-2);
+      box-shadow: inset 0 -2px 0 var(--signal);
+    }
+
+    /* Manage grid — quieter than ops, still dense */
+    .mgr {
+      display: grid;
+      grid-template-columns: minmax(0, 1.55fr) 360px;
+      grid-template-rows: minmax(280px, auto) minmax(0, 1fr) minmax(220px, auto);
+      gap: 1px;
+      background: var(--border-1);
+      min-height: 820px;
+    }
+    .mgr > .cell { background: var(--bg-0); display: flex; flex-direction: column; min-height: 0; }
+    .mgr .r1-left  { grid-column: 1; grid-row: 1; }
+    .mgr .r1-right { grid-column: 2; grid-row: 1 / span 2; }
+    .mgr .r2-left  { grid-column: 1; grid-row: 2; display: grid; grid-template-columns: 1.25fr 1fr; gap: 1px; background: var(--border-1); }
+    .mgr .r2-left > .cell { background: var(--bg-0); }
+    .mgr .r3       { grid-column: 1 / span 2; grid-row: 3; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1px; background: var(--border-1); }
+    .mgr .r3 > .cell { background: var(--bg-0); }
+
+    /* Chart shell — same idiom as ops */
+    .chart-frame {
+      flex: 1;
+      position: relative;
+      padding: 8px 14px 22px 44px;
+      min-height: 0;
+    }
+    .chart-svg { width: 100%; height: 100%; display: block; }
+    .chart-legend {
+      display: flex; align-items: center; gap: 18px;
+      padding: 6px 14px;
+      font-family: var(--font-mono);
+      font-size: var(--t-10);
+      color: var(--fg-2);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      border-top: 1px solid var(--border-1);
+    }
+    .chart-legend .legend-item { display: inline-flex; align-items: center; gap: 5px; }
+    .chart-legend .legend-mark { width: 12px; height: 2px; display: inline-block; background: currentColor; }
+    .chart-legend .v { font-family: var(--font-mono); color: var(--fg-0); margin-left: 4px; }
+
+    /* Store fleet ranking */
+    .rank-row {
+      display: grid;
+      grid-template-columns: 24px 1fr 72px 92px 72px 56px;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 14px;
+      border-bottom: 1px solid var(--border-1);
+      font-size: var(--t-12);
+    }
+    .rank-row:hover { background: var(--bg-2); }
+    .rank-row .rk {
+      font-family: var(--font-mono);
+      font-size: var(--t-10);
+      color: var(--fg-3);
+      letter-spacing: 0.08em;
+    }
+    .rank-row .store-id {
+      font-family: var(--font-mono);
+      font-size: var(--t-11);
+      color: var(--fg-2);
+      letter-spacing: 0.04em;
+    }
+    .rank-row .store-name { color: var(--fg-0); font-size: var(--t-12); }
+    .rank-row .rev {
+      font-family: var(--font-mono);
+      font-size: var(--t-12);
+      color: var(--fg-0);
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    .rank-row .rev-sub {
+      font-family: var(--font-mono);
+      font-size: var(--t-10);
+      color: var(--fg-3);
+      letter-spacing: 0.04em;
+      text-align: right;
+      margin-top: 1px;
+    }
+    .rank-row .pop {
+      font-family: var(--font-mono);
+      font-size: var(--t-11);
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    .rank-row .pop.up { color: var(--ok); }
+    .rank-row .pop.down { color: var(--crit); }
+    .rank-row .pop.flat { color: var(--fg-2); }
+    .rank-row .rank-spark { color: var(--signal); }
+
+    /* Category breakdown horizontal bars */
+    .cat-row {
+      display: grid;
+      grid-template-columns: 130px 1fr 70px 64px;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 14px;
+      border-bottom: 1px solid var(--border-1);
+      font-size: var(--t-12);
+    }
+    .cat-row:hover { background: var(--bg-2); }
+    .cat-row .cat-name { color: var(--fg-0); font-size: var(--t-12); }
+    .cat-row .cat-sub { color: var(--fg-3); font-size: var(--t-10); font-family: var(--font-mono); letter-spacing: 0.04em; margin-top: 1px; }
+    .cat-bar {
+      height: 5px;
+      background: var(--bg-3);
+      border-radius: 1px;
+      position: relative;
+      overflow: hidden;
+    }
+    .cat-bar > span { display: block; height: 100%; background: var(--signal); }
+    .cat-bar > span.tg { background: var(--telemetry); }
+    .cat-bar > span.amber { background: var(--warn); }
+    .cat-row .cat-rev { font-family: var(--font-mono); font-size: var(--t-12); color: var(--fg-0); text-align: right; font-variant-numeric: tabular-nums; }
+    .cat-row .cat-margin { font-family: var(--font-mono); font-size: var(--t-11); color: var(--fg-1); text-align: right; font-variant-numeric: tabular-nums; }
+    .cat-row .cat-margin.warn { color: var(--warn); }
+    .cat-row .cat-margin.up { color: var(--ok); }
+
+    /* Watchdog insight cards */
+    .insight {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border-1);
+      position: relative;
+    }
+    .insight::before {
+      content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 2px;
+    }
+    .insight.pos::before { background: var(--ok); }
+    .insight.neg::before { background: var(--crit); }
+    .insight.warn::before { background: var(--warn); }
+    .insight.info::before { background: var(--signal); }
+    .insight .head {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 4px;
+    }
+    .insight .tag {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: 0.10em;
+      text-transform: uppercase;
+      padding: 1px 5px;
+      border-radius: 2px;
+      border: 1px solid var(--border-2);
+      color: var(--fg-2);
+    }
+    .insight.pos .tag { color: var(--ok); border-color: rgba(30,181,94,0.4); }
+    .insight.neg .tag { color: var(--crit); border-color: rgba(229,72,77,0.5); }
+    .insight.warn .tag { color: var(--warn); border-color: rgba(255,181,71,0.4); }
+    .insight.info .tag { color: var(--signal); border-color: rgba(6,144,252,0.4); }
+    .insight .ts {
+      font-family: var(--font-mono);
+      font-size: var(--t-10);
+      color: var(--fg-3);
+      letter-spacing: 0.04em;
+      margin-left: auto;
+    }
+    .insight .body { color: var(--fg-0); font-size: var(--t-12); line-height: 1.45; }
+    .insight .body .em { color: var(--signal-2); font-family: var(--font-mono); }
+    .insight .body .crit { color: var(--crit); font-family: var(--font-mono); }
+    .insight .body .ok { color: var(--ok); font-family: var(--font-mono); }
+    .insight .meta {
+      margin-top: 6px;
+      font-family: var(--font-mono);
+      font-size: var(--t-10);
+      color: var(--fg-3);
+      letter-spacing: 0.04em;
+    }
+    .insight .meta .sep { margin: 0 6px; color: var(--border-2); }
+
+    /* SKU table */
+    .sku-row {
+      display: grid;
+      grid-template-columns: 56px 1fr 70px 64px 56px;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 14px;
+      border-bottom: 1px solid var(--border-1);
+      font-size: var(--t-12);
+    }
+    .sku-row:hover { background: var(--bg-2); }
+    .sku-row .sku { font-family: var(--font-mono); font-size: var(--t-11); color: var(--fg-2); }
+    .sku-row .name { color: var(--fg-0); font-size: var(--t-12); }
+    .sku-row .sub { color: var(--fg-3); font-size: var(--t-10); font-family: var(--font-mono); margin-top: 1px; letter-spacing: 0.04em; }
+    .sku-row .num { font-family: var(--font-mono); font-size: var(--t-12); color: var(--fg-0); text-align: right; font-variant-numeric: tabular-nums; }
+    .sku-row .marg { font-family: var(--font-mono); font-size: var(--t-11); color: var(--ok); text-align: right; font-variant-numeric: tabular-nums; }
+    .sku-row .delta { font-family: var(--font-mono); font-size: var(--t-10); text-align: right; letter-spacing: 0.04em; font-variant-numeric: tabular-nums; }
+    .sku-row .delta.up { color: var(--ok); }
+    .sku-row .delta.down { color: var(--crit); }
+
+    /* Period progress gauge */
+    .pace {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1px;
+      background: var(--border-1);
+      border-bottom: 1px solid var(--border-1);
+    }
+    .pace > div {
+      background: var(--bg-1);
+      padding: 10px 14px;
+      display: flex; flex-direction: column; gap: 3px;
+    }
+    .pace .lbl { font-family: var(--font-mono); font-size: var(--t-10); color: var(--fg-3); letter-spacing: 0.10em; text-transform: uppercase; }
+    .pace .v   { font-family: var(--font-mono); font-size: var(--t-14); color: var(--fg-0); font-variant-numeric: tabular-nums; }
+    .pace .sub { font-family: var(--font-mono); font-size: var(--t-10); color: var(--fg-2); letter-spacing: 0.04em; }
+
+    .pace-bar {
+      height: 6px;
+      background: var(--bg-3);
+      border-radius: 1px;
+      position: relative;
+      margin-top: 4px;
+      overflow: hidden;
+    }
+    .pace-bar > .actual { position: absolute; left: 0; top: 0; bottom: 0; background: var(--signal); }
+    .pace-bar > .pace-line { position: absolute; top: -2px; bottom: -2px; width: 1px; background: var(--telemetry); }
+    .pace-bar > .pace-line::after {
+      content: ""; position: absolute; top: -3px; left: -2px;
+      width: 4px; height: 4px; background: var(--telemetry); border-radius: 1px;
+    }
+
+    /* Tender mix */
+    .tender-stack {
+      display: flex;
+      height: 22px;
+      background: var(--bg-3);
+      border-radius: 2px;
+      overflow: hidden;
+      margin: 8px 14px;
+      border: 1px solid var(--border-1);
+    }
+    .tender-stack > div {
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.05em;
+      color: rgba(0,0,0,0.7); font-weight: 600;
+    }
+    .tender-row {
+      display: grid;
+      grid-template-columns: 10px 1fr 70px 56px;
+      align-items: center;
+      gap: 10px;
+      padding: 7px 14px;
+      border-bottom: 1px solid var(--border-1);
+      font-size: var(--t-12);
+    }
+    .tender-row:hover { background: var(--bg-2); }
+    .tender-row .swatch { width: 8px; height: 8px; border-radius: 1px; }
+    .tender-row .name { color: var(--fg-0); font-size: var(--t-12); font-family: var(--font-mono); letter-spacing: 0.04em; }
+    .tender-row .val { font-family: var(--font-mono); font-size: var(--t-12); color: var(--fg-0); text-align: right; font-variant-numeric: tabular-nums; }
+    .tender-row .pct { font-family: var(--font-mono); font-size: var(--t-11); color: var(--fg-2); text-align: right; font-variant-numeric: tabular-nums; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script src="./js/alwon.js"></script>
+  <script>
+    const mainHtml = `
+      <div class="page-header">
+        <div class="crumb">
+          <span>OPERATIONS</span>
+          <span class="sep">/</span>
+          <span>Dashboard</span>
+          <span class="sep">/</span>
+          <span class="accent">Manage</span>
+          <span class="sep">·</span>
+          <span class="mono dim">Fleet · 6 stores · CO</span>
+        </div>
+        <span class="pill ok"><span class="dot ok"></span>MTD · MAY 2026</span>
+        <span class="pill ghost dim">vs · prev period</span>
+        <span class="pill ghost dim">currency · COP</span>
+        <div class="right">
+          <div class="period-row">
+            <button>TODAY</button>
+            <button>WEEK</button>
+            <button class="active">MONTH</button>
+            <button>QTR</button>
+            <button>YTD</button>
+          </div>
+          <button class="btn tiny"><span>Snapshot</span></button>
+          <button class="btn tiny"><span>Export CSV</span></button>
+          <button class="btn tiny primary"><span>Schedule Report</span></button>
+        </div>
+      </div>
+
+      <!-- EXECUTIVE KPI STRIP -->
+      <div class="kpi-strip">
+        <div class="kpi">
+          <div class="kpi-label">NET REVENUE · MTD</div>
+          <div class="kpi-value mono">$ 1.482M<span class="kpi-unit">COP</span></div>
+          <div class="kpi-delta"><span class="delta up">▲ 14.2%</span> <span class="ref">vs Apr 1.297M</span></div>
+          <span class="kpi-spark" data-spark data-spark-len="32" data-spark-seed="13" style="color: var(--signal-2)"></span>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">GROSS MARGIN</div>
+          <div class="kpi-value"><span>28.4</span><span class="kpi-unit">%</span></div>
+          <div class="kpi-delta"><span class="delta up">▲ 0.6pp</span> <span class="ref">target ≥ 27.0</span></div>
+          <span class="kpi-spark" data-spark data-spark-len="32" data-spark-seed="29" style="color: var(--ok)"></span>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">AOV · BASKET $</div>
+          <div class="kpi-value mono">$ 28.420<span class="kpi-unit">COP</span></div>
+          <div class="kpi-delta"><span class="delta up">▲ 3.1%</span> <span class="ref">prev $ 27.560</span></div>
+          <span class="kpi-spark" data-spark data-spark-len="32" data-spark-seed="37" style="color: var(--telemetry)"></span>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">CONVERSION</div>
+          <div class="kpi-value"><span>41.8</span><span class="kpi-unit">%</span></div>
+          <div class="kpi-delta"><span class="delta up">▲ 1.2pp</span> <span class="ref">entries → tx</span></div>
+          <span class="kpi-spark" data-spark data-spark-len="32" data-spark-seed="47" style="color: var(--signal)"></span>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">BASKET · ITEMS</div>
+          <div class="kpi-value"><span>4.7</span><span class="kpi-unit">avg</span></div>
+          <div class="kpi-delta"><span class="delta up">▲ 0.2</span> <span class="ref">prev 4.5</span></div>
+          <span class="kpi-spark" data-spark data-spark-len="32" data-spark-seed="53" style="color: var(--signal-2)"></span>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">SHRINKAGE</div>
+          <div class="kpi-value"><span>0.84</span><span class="kpi-unit">%</span></div>
+          <div class="kpi-delta"><span class="delta up fg-ok">▼ 0.12pp</span> <span class="ref">target ≤ 1.20</span></div>
+          <span class="kpi-spark" data-spark data-spark-len="32" data-spark-seed="61" style="color: var(--ok)"></span>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">STOCKOUT HRS</div>
+          <div class="kpi-value mono"><span>184</span><span class="kpi-unit">h</span></div>
+          <div class="kpi-delta"><span class="delta up fg-ok">▼ 38h</span> <span class="ref">target ≤ 220h</span></div>
+          <span class="kpi-spark" data-spark data-spark-len="32" data-spark-seed="67" style="color: var(--telemetry)"></span>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">NPS · OPS</div>
+          <div class="kpi-value"><span>64</span><span class="kpi-unit">/ 100</span></div>
+          <div class="kpi-delta"><span class="delta up">▲ 6</span> <span class="ref">target ≥ 50</span></div>
+          <span class="kpi-spark" data-spark data-spark-len="32" data-spark-seed="71" style="color: var(--signal-2)"></span>
+        </div>
+      </div>
+
+      <!-- ASYMMETRIC MANAGE GRID -->
+      <div class="mgr">
+
+        <!-- LEFT TOP: revenue trend stacked -->
+        <div class="cell r1-left">
+          <div class="panel-head">
+            <span class="label">M 1</span>
+            <span class="title">Revenue · 90d · by channel</span>
+            <span class="pill ghost dim">POS · App · B2B</span>
+            <span class="pill telem">stacked · daily</span>
+            <div class="right">
+              <span class="dim mono">avg 49.4M/day · last 30d</span>
+              <button class="btn tiny ghost">⤢</button>
+            </div>
+          </div>
+          <div class="chart-frame">
+            <svg class="chart-svg" viewBox="0 0 880 260" preserveAspectRatio="none">
+              <!-- grid -->
+              <g stroke="#1c1f24" stroke-width="1">
+                <line x1="0" y1="40" x2="880" y2="40"/>
+                <line x1="0" y1="90" x2="880" y2="90"/>
+                <line x1="0" y1="140" x2="880" y2="140"/>
+                <line x1="0" y1="190" x2="880" y2="190"/>
+                <line x1="0" y1="240" x2="880" y2="240"/>
+              </g>
+              <!-- month dividers -->
+              <g stroke="#1c1f24" stroke-width="1" stroke-dasharray="2 4">
+                <line x1="294" y1="0" x2="294" y2="240"/>
+                <line x1="588" y1="0" x2="588" y2="240"/>
+              </g>
+              <!-- y axis -->
+              <g font-family="ui-monospace, monospace" font-size="9" fill="#555a64" letter-spacing="0.05em">
+                <text x="6" y="44">80M</text>
+                <text x="6" y="94">60M</text>
+                <text x="6" y="144">40M</text>
+                <text x="6" y="194">20M</text>
+                <text x="6" y="244">0</text>
+              </g>
+
+              <!-- B2B stacked (bottom) -->
+              <path d="M0 232 L40 230 L80 226 L120 228 L160 222 L200 224 L240 218 L280 220 L320 214 L360 218 L400 210 L440 212 L480 204 L520 208 L560 200 L600 204 L640 196 L680 198 L720 188 L760 192 L800 184 L840 182 L880 178 L880 240 L0 240 Z"
+                fill="rgba(96,231,255,0.15)" stroke="none"/>
+              <!-- App stacked (middle) -->
+              <path d="M0 196 L40 192 L80 188 L120 184 L160 178 L200 174 L240 170 L280 168 L320 162 L360 166 L400 156 L440 158 L480 148 L520 152 L560 142 L600 146 L640 134 L680 138 L720 124 L760 130 L800 116 L840 112 L880 104 L880 178 L840 182 L800 184 L760 192 L720 188 L680 198 L640 196 L600 204 L560 200 L520 208 L480 204 L440 212 L400 210 L360 218 L320 214 L280 220 L240 218 L200 224 L160 222 L120 228 L80 226 L40 230 L0 232 Z"
+                fill="rgba(56,168,253,0.18)" stroke="none"/>
+              <!-- POS stacked (top) -->
+              <path d="M0 142 L40 138 L80 132 L120 130 L160 122 L200 118 L240 112 L280 108 L320 100 L360 104 L400 92 L440 96 L480 84 L520 88 L560 76 L600 80 L640 66 L680 70 L720 54 L760 60 L800 44 L840 38 L880 28 L880 104 L840 112 L800 116 L760 130 L720 124 L680 138 L640 134 L600 146 L560 142 L520 152 L480 148 L440 158 L400 156 L360 166 L320 162 L280 168 L240 170 L200 174 L160 178 L120 184 L80 188 L40 192 L0 196 Z"
+                fill="rgba(6,144,252,0.28)" stroke="none"/>
+
+              <!-- Top trendline -->
+              <path d="M0 142 L40 138 L80 132 L120 130 L160 122 L200 118 L240 112 L280 108 L320 100 L360 104 L400 92 L440 96 L480 84 L520 88 L560 76 L600 80 L640 66 L680 70 L720 54 L760 60 L800 44 L840 38 L880 28"
+                stroke="#0690fc" stroke-width="1.4" fill="none"/>
+
+              <!-- 30d moving avg -->
+              <path d="M0 122 L80 118 L160 112 L240 104 L320 96 L400 88 L480 78 L560 68 L640 56 L720 46 L800 34"
+                stroke="#60e7ff" stroke-width="1" stroke-dasharray="3 3" fill="none"/>
+
+              <!-- now marker -->
+              <line x1="878" y1="0" x2="878" y2="240" stroke="#60e7ff" stroke-width="1" opacity="0.5"/>
+              <circle cx="878" cy="28" r="3" fill="#0690fc"/>
+              <circle cx="878" cy="28" r="6" fill="none" stroke="#0690fc" stroke-width="1" opacity="0.5"/>
+
+              <!-- price action marker -->
+              <line x1="500" y1="0" x2="500" y2="240" stroke="#ffb547" stroke-width="1" stroke-dasharray="3 3" opacity="0.6"/>
+              <text x="504" y="14" font-family="ui-monospace, monospace" font-size="9" fill="#ffb547" letter-spacing="0.05em">POSTOBÓN +4.2%</text>
+
+              <!-- renovation marker -->
+              <line x1="294" y1="0" x2="294" y2="240" stroke="#1eb55e" stroke-width="1" stroke-dasharray="3 3" opacity="0.5"/>
+              <text x="298" y="14" font-family="ui-monospace, monospace" font-size="9" fill="#1eb55e" letter-spacing="0.05em">BOG-001 RENOV</text>
+
+              <!-- x labels -->
+              <g font-family="ui-monospace, monospace" font-size="9" fill="#555a64" letter-spacing="0.05em">
+                <text x="38" y="255">FEB</text>
+                <text x="294" y="255">MAR</text>
+                <text x="588" y="255">APR</text>
+                <text x="850" y="255">MAY</text>
+              </g>
+            </svg>
+          </div>
+          <div class="chart-legend">
+            <span class="legend-item" style="color: var(--signal)"><span class="legend-mark"></span>POS<span class="v">$ 1.118M · 75%</span></span>
+            <span class="legend-item" style="color: var(--signal-2)"><span class="legend-mark"></span>APP<span class="v">$ 284M · 19%</span></span>
+            <span class="legend-item" style="color: var(--telemetry)"><span class="legend-mark"></span>B2B<span class="v">$ 81M · 6%</span></span>
+            <span class="legend-item" style="color: var(--telemetry); margin-left: auto;"><span>30d MA · trending +14.2% PoP</span></span>
+          </div>
+        </div>
+
+        <!-- RIGHT RAIL: watchdog insights + period pace -->
+        <div class="cell r1-right">
+          <div class="panel-head">
+            <span class="label">M 2</span>
+            <span class="title">Period highlights</span>
+            <span class="pill telem">watchdog · 7</span>
+            <div class="right">
+              <span class="live"><span class="pulse ok"></span>AUTO</span>
+              <button class="btn tiny ghost">⤴</button>
+            </div>
+          </div>
+
+          <div class="pace">
+            <div>
+              <span class="lbl">PERIOD PROGRESS</span>
+              <span class="v">14 / 31 d</span>
+              <span class="sub">45.2% elapsed</span>
+              <div class="pace-bar">
+                <span class="actual" style="width: 47%"></span>
+                <span class="pace-line" style="left: 45.2%"></span>
+              </div>
+            </div>
+            <div>
+              <span class="lbl">REVENUE PACE</span>
+              <span class="v">$ 1.482M</span>
+              <span class="sub fg-ok">+2.1pp · ahead of pace</span>
+              <div class="pace-bar">
+                <span class="actual" style="width: 46.6%; background: var(--ok)"></span>
+                <span class="pace-line" style="left: 45.2%"></span>
+              </div>
+            </div>
+          </div>
+
+          <div style="flex: 1; overflow-y: auto;">
+            <div class="insight pos">
+              <div class="head">
+                <span class="tag">REVENUE ▲</span>
+                <span class="ts">14:08 UTC · today</span>
+              </div>
+              <div class="body">
+                <span class="em">BOG-001</span> revenue accelerating <span class="ok">+18% PoP</span> on post-renovation footfall — <span class="em">cam-1</span> entries <span class="ok">+24%</span> WoW. Conversion lifted to <span class="em">46.2%</span>.
+              </div>
+              <div class="meta">store · BOG-001<span class="sep">·</span>signal conf 0.94<span class="sep">·</span>since 2026-04-21</div>
+            </div>
+
+            <div class="insight neg">
+              <div class="head">
+                <span class="tag">UNDERPERF ▼</span>
+                <span class="ts">06:00 UTC · today</span>
+              </div>
+              <div class="body">
+                <span class="em">CLO-001</span> underperforming <span class="crit">−2.1% PoP</span> — driver: Sat conversion drop <span class="em">41%</span> → <span class="crit">28%</span>. Investigate weekend staffing.
+              </div>
+              <div class="meta">store · CLO-001<span class="sep">·</span>signal conf 0.88<span class="sep">·</span>persistent · 3w</div>
+            </div>
+
+            <div class="insight warn">
+              <div class="head">
+                <span class="tag">MARGIN ↓</span>
+                <span class="ts">2026-05-02 · 14d ago</span>
+              </div>
+              <div class="body">
+                Bebidas margin compressed <span class="crit">−0.4pp</span> after Postobón price action <span class="em">+4.2%</span>. Pass-through <span class="em">78%</span> — review re-pricing cadence.
+              </div>
+              <div class="meta">category · bebidas<span class="sep">·</span>impact $ 28M/mo<span class="sep">·</span>action · pending</div>
+            </div>
+
+            <div class="insight warn">
+              <div class="head">
+                <span class="tag">CONVERSION ↓</span>
+                <span class="ts">rolling 7d</span>
+              </div>
+              <div class="body">
+                PSE settlement lag (avg <span class="em">+1.4s p99</span>) correlates with <span class="crit">−0.3pp</span> conversion on tickets > $ 50.000. Affects <span class="em">12% of baskets</span>.
+              </div>
+              <div class="meta">processor · pse<span class="sep">·</span>↗ payments.html<span class="sep">·</span>↗ INC-2397</div>
+            </div>
+
+            <div class="insight info">
+              <div class="head">
+                <span class="tag">STOCKOUT ↑</span>
+                <span class="ts">rolling 14d</span>
+              </div>
+              <div class="body">
+                <span class="em">MDE-001</span> stockout hours trending <span class="crit">+12h / wk</span> · 4 SKUs (Postobón, Águila, Saltín, Detodito). Review replenishment cadence.
+              </div>
+              <div class="meta">store · MDE-001<span class="sep">·</span>↗ inventory.html<span class="sep">·</span>action · auto-reorder bumped</div>
+            </div>
+
+            <div class="insight pos">
+              <div class="head">
+                <span class="tag">SHRINK ▼</span>
+                <span class="ts">rolling 30d</span>
+              </div>
+              <div class="body">
+                Fleet shrinkage down <span class="ok">−0.12pp</span> on vision LP rollout (cam-7 added 2026-04-08). Prevented loss <span class="em">≈$ 4.8M COP</span>.
+              </div>
+              <div class="meta">fleet · 6 stores<span class="sep">·</span>↗ loss-prevention.html<span class="sep">·</span>conf 0.91</div>
+            </div>
+
+            <div class="insight info">
+              <div class="head">
+                <span class="tag">FORECAST</span>
+                <span class="ts">end of period · 31 May</span>
+              </div>
+              <div class="body">
+                Projected close: <span class="em">$ 3.245M</span> (target <span class="em">$ 3.180M</span>) — <span class="ok">+2.0% above target</span> at 87% conf. Pacing on POS channel.
+              </div>
+              <div class="meta">model · ar+holiday<span class="sep">·</span>updated 14:00 UTC</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ROW 2: fleet ranking + category breakdown -->
+        <div class="r2-left">
+
+          <div class="cell">
+            <div class="panel-head">
+              <span class="label">M 3</span>
+              <span class="title">Fleet performance · ranked</span>
+              <span class="pill ghost dim">by net revenue · MTD</span>
+              <div class="right">
+                <span class="dim mono">6 stores</span>
+                <button class="btn tiny ghost">↧</button>
+              </div>
+            </div>
+            <div style="background: var(--bg-1); border-bottom: 1px solid var(--border-2);">
+              <div class="rank-row" style="padding-top: 6px; padding-bottom: 6px;">
+                <span class="upper tiny dim-2 mono">#</span>
+                <span class="upper tiny dim-2 mono">STORE</span>
+                <span class="upper tiny dim-2 mono right">TX MTD</span>
+                <span class="upper tiny dim-2 mono right">REVENUE</span>
+                <span class="upper tiny dim-2 mono right">PoP</span>
+                <span class="upper tiny dim-2 mono right">30d</span>
+              </div>
+            </div>
+            <div style="flex: 1; overflow-y: auto;">
+              <div class="rank-row">
+                <span class="rk">01</span>
+                <div>
+                  <span class="store-id">BOG-001</span><br/>
+                  <span class="store-name">Bogotá · Chapinero</span>
+                </div>
+                <span class="rev">14.2k</span>
+                <div>
+                  <div class="rev">$ 412M</div>
+                  <div class="rev-sub">28% of fleet</div>
+                </div>
+                <span class="pop up">▲ 18.4%</span>
+                <span class="rank-spark" data-spark data-spark-len="20" data-spark-seed="3"></span>
+              </div>
+              <div class="rank-row">
+                <span class="rk">02</span>
+                <div>
+                  <span class="store-id">MDE-001</span><br/>
+                  <span class="store-name">Medellín · El Poblado</span>
+                </div>
+                <span class="rev">9.8k</span>
+                <div>
+                  <div class="rev">$ 284M</div>
+                  <div class="rev-sub">19% of fleet</div>
+                </div>
+                <span class="pop up">▲ 22.1%</span>
+                <span class="rank-spark" data-spark data-spark-len="20" data-spark-seed="17"></span>
+              </div>
+              <div class="rank-row">
+                <span class="rk">03</span>
+                <div>
+                  <span class="store-id">BOG-002</span><br/>
+                  <span class="store-name">Bogotá · Usaquén</span>
+                </div>
+                <span class="rev">8.4k</span>
+                <div>
+                  <div class="rev">$ 261M</div>
+                  <div class="rev-sub">18% of fleet</div>
+                </div>
+                <span class="pop up">▲ 11.2%</span>
+                <span class="rank-spark" data-spark data-spark-len="20" data-spark-seed="31"></span>
+              </div>
+              <div class="rank-row">
+                <span class="rk">04</span>
+                <div>
+                  <span class="store-id">BOG-003</span><br/>
+                  <span class="store-name">Bogotá · Salitre</span>
+                </div>
+                <span class="rev">7.1k</span>
+                <div>
+                  <div class="rev">$ 218M</div>
+                  <div class="rev-sub">15% of fleet</div>
+                </div>
+                <span class="pop up">▲ 9.4%</span>
+                <span class="rank-spark" data-spark data-spark-len="20" data-spark-seed="43"></span>
+              </div>
+              <div class="rank-row">
+                <span class="rk">05</span>
+                <div>
+                  <span class="store-id">CTG-001</span><br/>
+                  <span class="store-name">Cartagena · Bocagrande</span>
+                </div>
+                <span class="rev">6.4k</span>
+                <div>
+                  <div class="rev">$ 198M</div>
+                  <div class="rev-sub">13% of fleet</div>
+                </div>
+                <span class="pop up">▲ 6.0%</span>
+                <span class="rank-spark" data-spark data-spark-len="20" data-spark-seed="51"></span>
+              </div>
+              <div class="rank-row">
+                <span class="rk">06</span>
+                <div>
+                  <span class="store-id">CLO-001</span><br/>
+                  <span class="store-name">Cali · Granada</span>
+                </div>
+                <span class="rev">3.7k</span>
+                <div>
+                  <div class="rev">$ 109M</div>
+                  <div class="rev-sub">7% of fleet</div>
+                </div>
+                <span class="pop down">▼ 2.1%</span>
+                <span class="rank-spark" data-spark data-spark-len="20" data-spark-seed="79" style="color: var(--crit)"></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="cell">
+            <div class="panel-head">
+              <span class="label">M 4</span>
+              <span class="title">Category breakdown</span>
+              <span class="pill ghost dim">revenue · margin · MTD</span>
+              <div class="right"><span class="dim mono">8 of 14</span></div>
+            </div>
+            <div style="flex: 1; overflow-y: auto;">
+              <div class="cat-row">
+                <div>
+                  <div class="cat-name">Bebidas</div>
+                  <div class="cat-sub">postobón · coca · águila</div>
+                </div>
+                <div class="cat-bar"><span style="width: 92%"></span></div>
+                <span class="cat-rev">$ 474M</span>
+                <span class="cat-margin warn">26.1%</span>
+              </div>
+              <div class="cat-row">
+                <div>
+                  <div class="cat-name">Snacks</div>
+                  <div class="cat-sub">detodito · noel · super ricas</div>
+                </div>
+                <div class="cat-bar"><span style="width: 52%"></span></div>
+                <span class="cat-rev">$ 267M</span>
+                <span class="cat-margin up">32.4%</span>
+              </div>
+              <div class="cat-row">
+                <div>
+                  <div class="cat-name">Lácteos</div>
+                  <div class="cat-sub">alpina · alquería · colanta</div>
+                </div>
+                <div class="cat-bar"><span style="width: 40%"></span></div>
+                <span class="cat-rev">$ 208M</span>
+                <span class="cat-margin">24.8%</span>
+              </div>
+              <div class="cat-row">
+                <div>
+                  <div class="cat-name">Aseo personal</div>
+                  <div class="cat-sub">jabón · shampoo · pasta</div>
+                </div>
+                <div class="cat-bar"><span class="tg" style="width: 32%"></span></div>
+                <span class="cat-rev">$ 163M</span>
+                <span class="cat-margin up">34.2%</span>
+              </div>
+              <div class="cat-row">
+                <div>
+                  <div class="cat-name">Limpieza hogar</div>
+                  <div class="cat-sub">fab · ariel · jabón rey</div>
+                </div>
+                <div class="cat-bar"><span class="tg" style="width: 26%"></span></div>
+                <span class="cat-rev">$ 133M</span>
+                <span class="cat-margin">29.6%</span>
+              </div>
+              <div class="cat-row">
+                <div>
+                  <div class="cat-name">Panadería</div>
+                  <div class="cat-sub">bimbo · ramo · artesanal</div>
+                </div>
+                <div class="cat-bar"><span class="amber" style="width: 21%"></span></div>
+                <span class="cat-rev">$ 104M</span>
+                <span class="cat-margin warn">22.1%</span>
+              </div>
+              <div class="cat-row">
+                <div>
+                  <div class="cat-name">Cárnicos</div>
+                  <div class="cat-sub">zenú · rica · pietrán</div>
+                </div>
+                <div class="cat-bar"><span class="amber" style="width: 18%"></span></div>
+                <span class="cat-rev">$ 88M</span>
+                <span class="cat-margin warn">21.8%</span>
+              </div>
+              <div class="cat-row" style="border-bottom: 0;">
+                <div>
+                  <div class="cat-name">Otros</div>
+                  <div class="cat-sub">papelería · ferretería</div>
+                </div>
+                <div class="cat-bar"><span style="width: 9%"></span></div>
+                <span class="cat-rev">$ 45M</span>
+                <span class="cat-margin up">38.1%</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- ROW 3: Top SKUs, tender mix, anomalies -->
+        <div class="r3">
+
+          <div class="cell">
+            <div class="panel-head">
+              <span class="label">M 5</span>
+              <span class="title">Top SKUs · margin contribution</span>
+              <span class="pill ghost dim">MTD · fleet</span>
+              <div class="right"><span class="dim mono">8 of 28.412</span></div>
+            </div>
+            <div style="background: var(--bg-1); border-bottom: 1px solid var(--border-2);">
+              <div class="sku-row" style="padding-top: 6px; padding-bottom: 6px;">
+                <span class="upper tiny dim-2 mono">SKU</span>
+                <span class="upper tiny dim-2 mono">PRODUCT</span>
+                <span class="upper tiny dim-2 mono right">REV</span>
+                <span class="upper tiny dim-2 mono right">MARGIN</span>
+                <span class="upper tiny dim-2 mono right">PoP</span>
+              </div>
+            </div>
+            <div style="flex: 1; overflow-y: auto;">
+              <div class="sku-row">
+                <span class="sku">0x7281</span>
+                <div>
+                  <div class="name">Postobón Cola 400ml</div>
+                  <div class="sub">bebidas · 9.842 u</div>
+                </div>
+                <span class="num">$ 41M</span>
+                <span class="marg">27.4%</span>
+                <span class="delta up">▲ 8%</span>
+              </div>
+              <div class="sku-row">
+                <span class="sku">0x9442</span>
+                <div>
+                  <div class="name">Águila Light 330ml</div>
+                  <div class="sub">cervezas · 6.214 u</div>
+                </div>
+                <span class="num">$ 38M</span>
+                <span class="marg">31.8%</span>
+                <span class="delta up">▲ 12%</span>
+              </div>
+              <div class="sku-row">
+                <span class="sku">0x4019</span>
+                <div>
+                  <div class="name">Coca Zero 600ml</div>
+                  <div class="sub">bebidas · 7.118 u</div>
+                </div>
+                <span class="num">$ 32M</span>
+                <span class="marg">28.6%</span>
+                <span class="delta up">▲ 4%</span>
+              </div>
+              <div class="sku-row">
+                <span class="sku">0x6f01</span>
+                <div>
+                  <div class="name">Leche Alpina 1L</div>
+                  <div class="sub">lácteos · 5.842 u</div>
+                </div>
+                <span class="num">$ 28M</span>
+                <span class="marg">24.1%</span>
+                <span class="delta up">▲ 6%</span>
+              </div>
+              <div class="sku-row">
+                <span class="sku">0x3187</span>
+                <div>
+                  <div class="name">Saltín Noel · 6×</div>
+                  <div class="sub">snacks · 4.218 u</div>
+                </div>
+                <span class="num">$ 24M</span>
+                <span class="marg">33.2%</span>
+                <span class="delta up">▲ 11%</span>
+              </div>
+              <div class="sku-row">
+                <span class="sku">0xaa12</span>
+                <div>
+                  <div class="name">Detodito 145g</div>
+                  <div class="sub">snacks · 3.940 u</div>
+                </div>
+                <span class="num">$ 22M</span>
+                <span class="marg">34.8%</span>
+                <span class="delta up">▲ 9%</span>
+              </div>
+              <div class="sku-row">
+                <span class="sku">0x2c08</span>
+                <div>
+                  <div class="name">Bimbo Pan Tajado</div>
+                  <div class="sub">panadería · 3.121 u</div>
+                </div>
+                <span class="num">$ 18M</span>
+                <span class="marg">21.4%</span>
+                <span class="delta down">▼ 3%</span>
+              </div>
+              <div class="sku-row" style="border-bottom: 0;">
+                <span class="sku">0xc017</span>
+                <div>
+                  <div class="name">Nescafé Clásico 200g</div>
+                  <div class="sub">bebidas · 1.847 u</div>
+                </div>
+                <span class="num">$ 16M</span>
+                <span class="marg">36.2%</span>
+                <span class="delta up">▲ 14%</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="cell">
+            <div class="panel-head">
+              <span class="label">M 6</span>
+              <span class="title">Tender mix · MTD</span>
+              <span class="pill ghost dim">share of $ value</span>
+              <div class="right"><span class="dim mono">6 channels</span></div>
+            </div>
+            <div class="tender-stack">
+              <div style="width: 38%; background: #0690fc">VISA/MC 38%</div>
+              <div style="width: 22%; background: #38a8fd">PSE 22%</div>
+              <div style="width: 18%; background: #60e7ff">NEQUI 18%</div>
+              <div style="width: 14%; background: #1eb55e">CASH 14%</div>
+              <div style="width: 5%; background: #ffb547"></div>
+              <div style="width: 3%; background: #555a64"></div>
+            </div>
+            <div style="flex: 1; overflow-y: auto;">
+              <div class="tender-row">
+                <span class="swatch" style="background: #0690fc"></span>
+                <span class="name">visa / mastercard</span>
+                <span class="val">$ 563M</span>
+                <span class="pct">38.0%</span>
+              </div>
+              <div class="tender-row">
+                <span class="swatch" style="background: #38a8fd"></span>
+                <span class="name">pse · bank.transfer</span>
+                <span class="val">$ 326M</span>
+                <span class="pct">22.0%</span>
+              </div>
+              <div class="tender-row">
+                <span class="swatch" style="background: #60e7ff"></span>
+                <span class="name">nequi · qr</span>
+                <span class="val">$ 267M</span>
+                <span class="pct">18.0%</span>
+              </div>
+              <div class="tender-row">
+                <span class="swatch" style="background: #1eb55e"></span>
+                <span class="name">cash · COP</span>
+                <span class="val">$ 207M</span>
+                <span class="pct">14.0%</span>
+              </div>
+              <div class="tender-row">
+                <span class="swatch" style="background: #ffb547"></span>
+                <span class="name">amex</span>
+                <span class="val">$ 74M</span>
+                <span class="pct">5.0%</span>
+              </div>
+              <div class="tender-row" style="border-bottom: 0;">
+                <span class="swatch" style="background: #555a64"></span>
+                <span class="name">credibanco · debit</span>
+                <span class="val">$ 45M</span>
+                <span class="pct">3.0%</span>
+              </div>
+            </div>
+            <div style="padding: 8px 14px; border-top: 1px solid var(--border-1); background: var(--bg-1); display: flex; gap: 16px; font-family: var(--font-mono); font-size: var(--t-10); color: var(--fg-3); letter-spacing: 0.06em; text-transform: uppercase;">
+              <span>cash share <span class="fg-1">14.0%</span></span>
+              <span>digital share <span class="fg-1">78.0%</span></span>
+              <span style="margin-left: auto;">trend · <span class="fg-ok">cash ▼ 2.4pp PoP</span></span>
+            </div>
+          </div>
+
+          <div class="cell">
+            <div class="panel-head">
+              <span class="label">M 7</span>
+              <span class="title">Forecast vs actual · close projection</span>
+              <span class="pill ghost dim">target $ 3.180M</span>
+              <div class="right"><span class="dim mono">conf 87%</span></div>
+            </div>
+            <div class="chart-frame" style="padding: 10px 14px 22px 36px;">
+              <svg class="chart-svg" viewBox="0 0 480 200" preserveAspectRatio="none">
+                <g stroke="#1c1f24" stroke-width="1">
+                  <line x1="0" y1="40" x2="480" y2="40"/>
+                  <line x1="0" y1="80" x2="480" y2="80"/>
+                  <line x1="0" y1="120" x2="480" y2="120"/>
+                  <line x1="0" y1="160" x2="480" y2="160"/>
+                </g>
+                <g font-family="ui-monospace, monospace" font-size="9" fill="#555a64" letter-spacing="0.05em">
+                  <text x="6" y="44">3.2M</text>
+                  <text x="6" y="84">2.4M</text>
+                  <text x="6" y="124">1.6M</text>
+                  <text x="6" y="164">0.8M</text>
+                </g>
+
+                <!-- target line -->
+                <line x1="0" y1="40" x2="480" y2="40" stroke="#ffb547" stroke-width="1" stroke-dasharray="3 3" opacity="0.6"/>
+                <text x="440" y="36" font-family="ui-monospace, monospace" font-size="9" fill="#ffb547">TARGET</text>
+
+                <!-- pace cone (forecast envelope) -->
+                <path d="M210 116 L380 60 L380 80 L210 124 Z" fill="rgba(6,144,252,0.10)" stroke="none"/>
+                <!-- forecast line -->
+                <path d="M210 116 L240 100 L270 92 L300 84 L330 76 L360 68 L380 60"
+                  stroke="#60e7ff" stroke-width="1.4" stroke-dasharray="4 3" fill="none"/>
+
+                <!-- pace target line -->
+                <path d="M0 200 L480 40" stroke="#555a64" stroke-width="1" stroke-dasharray="2 4" fill="none"/>
+
+                <!-- actual area -->
+                <path d="M0 192 L30 184 L60 178 L90 170 L120 162 L150 152 L180 138 L210 116 L210 200 L0 200 Z"
+                  fill="rgba(6,144,252,0.18)"/>
+                <path d="M0 192 L30 184 L60 178 L90 170 L120 162 L150 152 L180 138 L210 116"
+                  stroke="#0690fc" stroke-width="1.6" fill="none"/>
+
+                <!-- today marker -->
+                <line x1="210" y1="0" x2="210" y2="200" stroke="#60e7ff" stroke-width="1" opacity="0.5"/>
+                <circle cx="210" cy="116" r="3" fill="#0690fc"/>
+                <text x="214" y="14" font-family="ui-monospace, monospace" font-size="9" fill="#60e7ff" letter-spacing="0.05em">D14 · TODAY</text>
+
+                <!-- projected close -->
+                <circle cx="380" cy="60" r="3" fill="#60e7ff"/>
+                <text x="316" y="56" font-family="ui-monospace, monospace" font-size="9" fill="#60e7ff" letter-spacing="0.05em">CLOSE $ 3.245M</text>
+
+                <g font-family="ui-monospace, monospace" font-size="9" fill="#555a64" letter-spacing="0.05em">
+                  <text x="0" y="195">D1</text>
+                  <text x="100" y="195">D7</text>
+                  <text x="200" y="195">D14</text>
+                  <text x="300" y="195">D21</text>
+                  <text x="430" y="195">D31</text>
+                </g>
+              </svg>
+            </div>
+            <div class="chart-legend">
+              <span class="legend-item" style="color: var(--signal)"><span class="legend-mark"></span>ACTUAL<span class="v">$ 1.482M</span></span>
+              <span class="legend-item" style="color: var(--telemetry)"><span class="legend-mark"></span>FORECAST<span class="v">$ 3.245M</span></span>
+              <span class="legend-item" style="color: var(--warn)"><span class="legend-mark"></span>TARGET<span class="v">$ 3.180M</span></span>
+              <span class="legend-item" style="color: var(--ok); margin-left: auto;"><span>▲ +2.0% vs target · 87% conf</span></span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    `;
+
+    ALWON.init({
+      active: 'dashboard-mgmt',
+      main: mainHtml,
+    });
+  </script>
+</body>
+</html>
