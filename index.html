@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=1440, initial-scale=1" />
+  <title>ALWON OS · Operator console</title>
+  <link rel="stylesheet" href="./css/alwon.css" />
+  <style>
+    /* Operator overview / launcher */
+    .ov {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1px;
+      background: var(--border-1);
+    }
+    .ov > .cell { background: var(--bg-1); display: flex; flex-direction: column; }
+    .ov .span-2 { grid-column: span 2; }
+
+    /* Hero strip */
+    .hero {
+      background:
+        radial-gradient(ellipse at 80% 50%, rgba(6, 144, 252, 0.10), transparent 60%),
+        radial-gradient(ellipse at 18% 30%, rgba(96, 231, 255, 0.06), transparent 50%),
+        var(--bg-1);
+      border-bottom: 1px solid var(--border-1);
+      padding: 20px 24px 18px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 24px;
+      position: relative;
+    }
+    .hero::after {
+      content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--signal), transparent);
+      opacity: 0.55;
+    }
+    .hero .lhs h1 {
+      margin: 0 0 6px 0;
+      font-size: var(--t-28);
+      color: var(--fg-0);
+      font-weight: 500;
+      letter-spacing: -0.012em;
+    }
+    .hero .lhs h1 .mono { font-family: var(--font-mono); color: var(--telemetry); font-size: var(--t-20); letter-spacing: 0.04em; }
+    .hero .lhs .sub {
+      font-family: var(--font-mono); font-size: var(--t-11); color: var(--fg-2);
+      letter-spacing: 0.06em; text-transform: uppercase;
+    }
+    .hero .lhs .desc {
+      margin-top: 12px;
+      color: var(--fg-1);
+      font-size: var(--t-13);
+      max-width: 620px;
+      line-height: 1.5;
+    }
+    .hero .rhs {
+      display: grid;
+      grid-template-columns: repeat(2, auto);
+      gap: 10px 18px;
+      font-family: var(--font-mono);
+      font-size: var(--t-11);
+      color: var(--fg-1);
+      letter-spacing: 0.02em;
+    }
+    .hero .rhs .row { display: contents; }
+    .hero .rhs .row .k { color: var(--fg-3); text-transform: uppercase; letter-spacing: 0.10em; font-size: var(--t-10); }
+    .hero .rhs .row .v { color: var(--fg-0); }
+
+    /* Surface launcher tiles */
+    .launcher {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1px;
+      background: var(--border-1);
+      padding: 1px;
+    }
+    .tile {
+      background: var(--bg-1);
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      cursor: pointer;
+      position: relative;
+      min-height: 130px;
+      text-decoration: none;
+      color: inherit;
+      transition: background 0.08s linear;
+    }
+    .tile:hover {
+      background: var(--bg-2);
+    }
+    .tile .tile-head {
+      display: flex; align-items: center; gap: 10px;
+      font-family: var(--font-mono);
+      font-size: var(--t-10);
+      color: var(--fg-3);
+      letter-spacing: 0.10em;
+      text-transform: uppercase;
+    }
+    .tile .tile-head .icon { color: var(--fg-2); }
+    .tile .tile-title { color: var(--fg-0); font-size: var(--t-14); font-weight: 500; letter-spacing: -0.005em; }
+    .tile .tile-desc { color: var(--fg-2); font-size: var(--t-12); line-height: 1.4; flex: 1; }
+    .tile .tile-state {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--font-mono);
+      font-size: var(--t-10);
+      color: var(--fg-2);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .tile .tile-state .v { color: var(--fg-0); }
+    .tile .tile-state.crit .v { color: var(--crit); }
+    .tile .tile-state.warn .v { color: var(--warn); }
+
+    /* Operator queue */
+    .op-row {
+      display: grid;
+      grid-template-columns: 24px 1fr auto auto;
+      gap: 14px;
+      align-items: center;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border-1);
+      cursor: pointer;
+    }
+    .op-row:hover { background: var(--bg-2); }
+    .op-row .marker {
+      width: 6px; height: 6px; border-radius: 50%;
+    }
+    .op-row .ttl { color: var(--fg-0); font-size: var(--t-13); margin-bottom: 2px; }
+    .op-row .sub { font-family: var(--font-mono); font-size: var(--t-10); color: var(--fg-3); letter-spacing: 0.04em; }
+    .op-row .meta { font-family: var(--font-mono); font-size: var(--t-10); color: var(--fg-2); letter-spacing: 0.04em; }
+
+    .fleet-bar {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 1px;
+      background: var(--border-1);
+      padding: 1px;
+    }
+    .fleet-tile {
+      background: var(--bg-1);
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .fleet-tile .name { font-family: var(--font-mono); font-size: var(--t-12); color: var(--fg-0); }
+    .fleet-tile .name .id { color: var(--fg-3); margin-right: 6px; }
+    .fleet-tile .where { font-family: var(--font-mono); font-size: var(--t-10); color: var(--fg-2); letter-spacing: 0.04em; }
+    .fleet-tile .state-row {
+      display: flex; align-items: center; gap: 6px; margin-top: 6px;
+      font-family: var(--font-mono); font-size: var(--t-10); letter-spacing: 0.08em; text-transform: uppercase;
+    }
+    .fleet-tile .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 4px;
+      margin-top: 8px;
+    }
+    .fleet-tile .stats > div {
+      font-family: var(--font-mono); font-size: var(--t-10); color: var(--fg-3);
+      letter-spacing: 0.04em;
+    }
+    .fleet-tile .stats > div .v {
+      display: block;
+      font-size: var(--t-13);
+      color: var(--fg-0);
+      letter-spacing: -0.005em;
+      margin-top: 1px;
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script src="./js/alwon.js"></script>
+  <script>
+    function tile(o) {
+      const stateClass = o.tone || '';
+      return `
+        <a class="tile" href="${o.href}">
+          <div class="tile-head">
+            <span class="icon">${ALWON.icon(o.icon)}</span>
+            <span>${o.head}</span>
+          </div>
+          <div class="tile-title">${o.title}</div>
+          <div class="tile-desc">${o.desc}</div>
+          <div class="tile-state ${stateClass}">
+            <span class="pulse ${o.dot || 'ok'}"></span>
+            <span>${o.lbl}</span>
+            <span class="v" style="margin-left: auto;">${o.val}</span>
+          </div>
+        </a>
+      `;
+    }
+
+    const mainHtml = `
+      <div class="hero">
+        <div class="lhs">
+          <div class="sub">Operator console · BOG-001 · shift opening 14:00–22:00 UTC</div>
+          <h1>Good afternoon, Jonathan. <span class="mono">3 items need you.</span></h1>
+          <div class="desc">
+            Runtime nominal across 5 live pilots. One critical incident (cam-7 vision degradation) is in your queue,
+            plus 2 LP review flags and an open inventory reorder window. Edge replay drained 12 minutes ago — no backlog.
+            Fiscal API, payment processors and WhatsApp are connected.
+          </div>
+        </div>
+        <div class="rhs">
+          <div class="row"><span class="k">SHIFT</span><span class="v">14:00 → 22:00 UTC</span></div>
+          <div class="row"><span class="k">ON-CALL</span><span class="v">jonathan.j · primary · sara.b · secondary</span></div>
+          <div class="row"><span class="k">RUNTIME</span><span class="v"><span class="dot ok"></span> nominal · 99.974% 7d</span></div>
+          <div class="row"><span class="k">REGION</span><span class="v">co-bog-1 · failover co-mde-1</span></div>
+          <div class="row"><span class="k">BUILD</span><span class="v">os.0.9.4-rc3 · 2d 14h pinned</span></div>
+          <div class="row"><span class="k">DEPLOY WINDOW</span><span class="v">23:00 UTC · CTG-001 rc2 → rc3</span></div>
+        </div>
+      </div>
+
+      <!-- TOP STATS -->
+      <div class="kpi-strip" style="grid-template-columns: repeat(8, 1fr);">
+        <div class="kpi"><div class="kpi-label">FLEET · LIVE</div><div class="kpi-value">5<span class="kpi-unit">/7</span></div><div class="kpi-delta"><span class="ref">1 syncing · 1 staged</span></div></div>
+        <div class="kpi"><div class="kpi-label">FLEET · TX/H</div><div class="kpi-value mono">994</div><div class="kpi-delta"><span class="delta up">▲ 14%</span></div></div>
+        <div class="kpi"><div class="kpi-label">FLEET · CONV</div><div class="kpi-value">91.5<span class="kpi-unit">%</span></div><div class="kpi-delta"><span class="delta up">▲ 1.2pp</span></div></div>
+        <div class="kpi"><div class="kpi-label">INCIDENTS · OPEN</div><div class="kpi-value fg-warn">5</div><div class="kpi-delta"><span class="ref">3 crit · 2 warn</span></div></div>
+        <div class="kpi"><div class="kpi-label">LP · PENDING</div><div class="kpi-value fg-warn">12</div><div class="kpi-delta"><span class="ref">avg 0.84 conf</span></div></div>
+        <div class="kpi"><div class="kpi-label">MSGS · UNREAD</div><div class="kpi-value">7</div><div class="kpi-delta"><span class="ref">3 assigned to me</span></div></div>
+        <div class="kpi"><div class="kpi-label">EDGE ⇄ CLOUD · p95</div><div class="kpi-value">14<span class="kpi-unit">ms</span></div><div class="kpi-delta"><span class="delta up">▸ stable</span></div></div>
+        <div class="kpi"><div class="kpi-label">EVENT THROUGHPUT</div><div class="kpi-value mono">1,284<span class="kpi-unit">ev/m</span></div><div class="kpi-delta"><span class="delta up">▲ 12.4%</span></div></div>
+      </div>
+
+      <!-- FLEET STATE -->
+      <div class="panel-head" style="border-top: 1px solid var(--border-1);">
+        <span class="label">CH 1</span>
+        <span class="title">Fleet · pilot stores</span>
+        <span class="pill ok">5 LIVE</span>
+        <span class="pill info">1 SYNCING</span>
+        <span class="pill ghost dim">1 STAGED</span>
+        <div class="right"><a href="stores.html" class="btn tiny">Open registry →</a></div>
+      </div>
+      <div class="fleet-bar">
+        ${fleetTile({ id: 'BOG-001', name: 'Chapinero', where: 'Bogotá · 4°36N · 11d 4h uptime', dot: 'ok', state: 'LIVE · NOMINAL', tx: '298', conv: '92.4%', inc: '3' })}
+        ${fleetTile({ id: 'BOG-002', name: 'Usaquén', where: 'Bogotá · 4°41N · 11d 4h uptime', dot: 'ok', state: 'LIVE', tx: '242', conv: '93.8%', inc: '1' })}
+        ${fleetTile({ id: 'BOG-003', name: 'Salitre', where: 'Bogotá · 4°39N · 8d 11h uptime', dot: 'ok', state: 'LIVE', tx: '184', conv: '91.2%', inc: '0' })}
+        ${fleetTile({ id: 'MDE-001', name: 'El Poblado', where: 'Medellín · 6°12N · 6d 18h uptime', dot: 'ok', state: 'LIVE', tx: '168', conv: '90.8%', inc: '1' })}
+        ${fleetTile({ id: 'CTG-001', name: 'Bocagrande', where: 'Cartagena · 10°24N · syncing 78%', dot: 'info', state: 'SYNC · rc3', tx: '102', conv: '89.4%', inc: '0' })}
+        ${fleetTile({ id: 'CLO-001', name: 'Granada', where: 'Cali · 3°27N · staged 24h', dot: 'idle', state: 'STAGED', tx: '—', conv: '—', inc: '—' })}
+      </div>
+
+      <!-- OPERATOR QUEUE + LAUNCHER -->
+      <div class="ov" style="border-top: 1px solid var(--border-1);">
+
+        <div class="cell">
+          <div class="panel-head">
+            <span class="label">CH 2</span>
+            <span class="title">Your queue · 3 items</span>
+            <span class="pill crit">1 CRIT</span>
+            <span class="pill warn">2 WARN</span>
+            <div class="right"><span class="dim mono">SLA · ack ≤ 5m crit</span></div>
+          </div>
+          <div>
+            <a class="op-row" href="incidents.html" style="text-decoration: none; color: inherit;">
+              <span class="marker" style="background: var(--crit); box-shadow: 0 0 0 3px var(--crit-bg);"></span>
+              <div>
+                <div class="ttl">cam-7 · vision pipeline degradation (INC-2401)</div>
+                <div class="sub">vision.runtime · BOG-001 · severity raised CRIT at 14:22:45 · auto-elevated</div>
+              </div>
+              <span class="pill crit">CRIT</span>
+              <span class="meta">04m 17s · open</span>
+            </a>
+            <a class="op-row" href="loss-prevention.html" style="text-decoration: none; color: inherit;">
+              <span class="marker" style="background: var(--warn);"></span>
+              <div>
+                <div class="ttl">2 LP review flags awaiting your call (cam-3 · cam-7)</div>
+                <div class="sub">loss-prevention · BOG-001 · conf 0.84 · 0.88 · queue lp-9241, lp-9242</div>
+              </div>
+              <span class="pill warn">REVIEW</span>
+              <span class="meta">07m · pending</span>
+            </a>
+            <a class="op-row" href="inventory.html" style="text-decoration: none; color: inherit;">
+              <span class="marker" style="background: var(--warn);"></span>
+              <div>
+                <div class="ttl">7 reorder windows armed · approve before 15:00 UTC</div>
+                <div class="sub">inventory.reorder · BOG-001 · ETA suppliers 1.4–3.1h · auto-armed</div>
+              </div>
+              <span class="pill warn">APPROVE</span>
+              <span class="meta">11m · pending</span>
+            </a>
+          </div>
+
+          <div class="panel-head" style="border-top: 1px solid var(--border-1);">
+            <span class="label">CH 3</span>
+            <span class="title">Activity · last 15m</span>
+            <span class="live"><span class="pulse ok"></span>STREAMING</span>
+          </div>
+          <div id="ovEvents" style="max-height: 280px; overflow-y: auto;"></div>
+        </div>
+
+        <div class="cell">
+          <div class="panel-head">
+            <span class="label">CH 4</span>
+            <span class="title">Operational surfaces</span>
+            <span class="pill ghost dim">12 surfaces</span>
+            <div class="right"><span class="dim mono">⌘K · open by name</span></div>
+          </div>
+          <div class="launcher">
+            ${tile({ icon: 'grid', head: 'OVERVIEW',  title: 'Dashboard',     desc: 'Realtime operational command surface · KPI strip, throughput, alerts, cams.', href: 'dashboard.html',   dot: 'ok',   lbl: 'live',         val: '298 tx/h' })}
+            ${tile({ icon: 'pulse',head: 'OVERVIEW',  title: 'Events',        desc: 'SIEM-style telemetry stream · severity + family filters · ws tail.',         href: 'events.html',      dot: 'ok',   lbl: 'streaming',    val: '23.7/s' })}
+            ${tile({ icon: 'alert',head: 'OVERVIEW',  title: 'Incidents',     desc: 'Live queue · auto-rules + runbooks · SLA tracking, MTTA + MTTR.',           href: 'incidents.html',   dot: 'crit', lbl: 'open',         val: '5', tone: 'crit' })}
+            ${tile({ icon: 'wave', head: 'OVERVIEW',  title: 'Observability', desc: 'Topology, SLOs, edge fleet, ingest pipeline, webhooks, latency heatmap.',  href: 'observability.html',dot: 'ok',   lbl: 'nominal',      val: '99.97%' })}
+            ${tile({ icon: 'box',  head: 'DAILY WORK',title: 'Inventory',     desc: 'SKU ledger, drift, predicted OOS, shelf heatmap, auto-reorder queue.',     href: 'inventory.html',   dot: 'warn', lbl: '2 oos · 7 ≤1h',val: '0.42%', tone: 'warn' })}
+            ${tile({ icon: 'scan', head: 'DAILY WORK',title: 'Checkout',      desc: '22 POS lanes · funnel + drop-off, operator perf, voids + overrides.',     href: 'checkout.html',    dot: 'ok',   lbl: '18/22 lanes',  val: '92.4%' })}
+            ${tile({ icon: 'card', head: 'DAILY WORK',title: 'Payments',      desc: 'Transaction stream, processor health, latency dist, decline reasons.',    href: 'payments.html',    dot: 'warn', lbl: 'pse · degraded',val: '99.62%', tone: 'warn' })}
+            ${tile({ icon: 'inbox',head: 'DAILY WORK',title: 'Messages',      desc: 'Shared inbox · WhatsApp, email, SMS, kiosk · assignment + threads.',      href: 'messages.html',    dot: 'info', lbl: '7 unread',     val: '14 open' })}
+            ${tile({ icon: 'eye',  head: 'DAILY WORK',title: 'Loss Prevention',desc: 'Forensic review queue · vision flags, frame viewer, case builder.',       href: 'loss-prevention.html',dot: 'warn',lbl: 'pending review',val: '12', tone: 'warn' })}
+            ${tile({ icon: 'building',head: 'SETUP',  title: 'Stores',        desc: 'Multi-store registry · runtime, SLOs, deploys, commissioning queue.',    href: 'stores.html',      dot: 'ok',   lbl: 'fleet',        val: '5 live · 1 sync' })}
+            ${tile({ icon: 'wave', head: 'SETUP',     title: 'Observability', desc: 'Same surface · entry from setup · investor-facing infra view.',           href: 'observability.html',dot: 'ok',  lbl: 'p95 API',      val: '142ms' })}
+            ${tile({ icon: 'gear', head: 'SETUP',     title: 'Settings',      desc: 'Runtime · API keys · integrations · operators · webhooks · danger zone.', href: 'settings.html',    dot: 'ok',   lbl: 'unsaved',      val: '3 changes' })}
+          </div>
+        </div>
+      </div>
+    `;
+
+    function fleetTile(o) {
+      return `
+        <a class="fleet-tile" href="dashboard.html" style="text-decoration: none; color: inherit;">
+          <div class="name"><span class="id">${o.id}</span>${o.name}</div>
+          <div class="where">${o.where}</div>
+          <div class="state-row"><span class="pulse ${o.dot}"></span><span class="${o.dot === 'ok' ? 'fg-ok' : o.dot === 'info' ? 'fg-info' : 'dim'}">${o.state}</span></div>
+          <div class="stats">
+            <div>TX/H<span class="v">${o.tx}</span></div>
+            <div>CONV<span class="v">${o.conv}</span></div>
+            <div>INC<span class="v ${o.inc !== '0' && o.inc !== '—' ? 'fg-warn' : ''}">${o.inc}</span></div>
+          </div>
+        </a>
+      `;
+    }
+
+    ALWON.init({
+      active: 'dashboard',
+      main: mainHtml,
+      onMounted() {
+        const t = document.getElementById('ovEvents');
+        ALWON.startEventStream(t, { max: 18, interval: 1100 });
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=1440, initial-scale=1" />
+  <title>ALWON OS · Loss Prevention</title>
+  <link rel="stylesheet" href="./css/alwon.css" />
+  <style>
+    .lp-layout {
+      display: grid;
+      grid-template-columns: 320px minmax(0, 1fr) 420px;
+      gap: 1px;
+      background: var(--border-1);
+      height: calc(100vh - var(--topbar-h) - var(--statusbar-h) - 36px - 36px - 84px);
+      min-height: 620px;
+    }
+    .lp-layout > .cell { background: var(--bg-1); min-height: 0; display: flex; flex-direction: column; }
+
+    .lp-queue-item {
+      display: grid;
+      grid-template-columns: 80px 1fr 50px;
+      gap: 10px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border-1);
+      cursor: pointer;
+      align-items: center;
+      position: relative;
+    }
+    .lp-queue-item.selected { background: var(--bg-3); }
+    .lp-queue-item.selected::before {
+      content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--signal);
+    }
+    .lp-queue-item:hover { background: var(--bg-2); }
+    .lp-thumb {
+      aspect-ratio: 16/10;
+      background:
+        repeating-linear-gradient(45deg, #0a0c10 0, #0a0c10 8px, #0d1014 8px, #0d1014 12px),
+        radial-gradient(ellipse at 40% 50%, rgba(96,231,255,0.18), transparent 60%);
+      border: 1px solid var(--border-2);
+      position: relative;
+      overflow: hidden;
+    }
+    .lp-thumb .bbox {
+      position: absolute; border: 1.5px solid var(--warn); box-shadow: 0 0 0 1px rgba(0,0,0,0.4);
+    }
+    .lp-thumb .cam {
+      position: absolute; left: 4px; top: 4px;
+      font-family: var(--font-mono); font-size: 9px; color: var(--telemetry);
+      background: rgba(0,0,0,0.5); padding: 1px 4px; border-radius: 2px;
+      letter-spacing: 0.08em;
+    }
+    .lp-queue-item .meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .lp-queue-item .meta .title { color: var(--fg-0); font-size: var(--t-12); }
+    .lp-queue-item .meta .sub { font-family: var(--font-mono); font-size: var(--t-10); color: var(--fg-3); letter-spacing: 0.04em; }
+    .lp-queue-item .age { font-family: var(--font-mono); font-size: var(--t-10); color: var(--fg-2); text-align: right; }
+
+    .viewer-frame {
+      position: relative;
+      flex: 1;
+      min-height: 0;
+      background:
+        repeating-linear-gradient(45deg, #07090c 0, #07090c 10px, #0b0e13 10px, #0b0e13 20px),
+        radial-gradient(ellipse at 35% 50%, rgba(96,231,255,0.20), transparent 65%);
+      overflow: hidden;
+    }
+    .viewer-frame .scan {
+      position: absolute; left: 0; right: 0; height: 1px; background: rgba(96,231,255,0.5);
+      animation: vscan 3.5s linear infinite;
+    }
+    @keyframes vscan { 0%{top:0;} 100%{top:100%;} }
+    .viewer-overlay {
+      position: absolute; inset: 0;
+      pointer-events: none;
+    }
+    .viewer-overlay .bbox {
+      position: absolute; border: 1.5px solid var(--warn);
+    }
+    .viewer-overlay .bbox.alt { border-color: var(--telemetry); }
+    .viewer-overlay .tracker-label {
+      position: absolute; transform: translate(0, -100%);
+      font-family: var(--font-mono); font-size: var(--t-10);
+      color: var(--warn); background: rgba(0,0,0,0.5);
+      padding: 1px 4px; letter-spacing: 0.04em;
+    }
+    .viewer-meta {
+      position: absolute; left: 12px; top: 12px;
+      display: flex; flex-direction: column; gap: 6px;
+      font-family: var(--font-mono); font-size: var(--t-11); color: var(--fg-0);
+    }
+    .viewer-meta .live-row {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(0,0,0,0.5); padding: 4px 8px; border-radius: 2px;
+      letter-spacing: 0.04em;
+    }
+    .viewer-meta .live-row .pulse { animation: alwon-pulse 1.5s infinite; }
+    .viewer-meta .crosshair {
+      background: rgba(0,0,0,0.5); padding: 4px 8px; border-radius: 2px;
+      letter-spacing: 0.08em; color: var(--fg-1); font-size: var(--t-10);
+    }
+    .viewer-controls {
+      position: absolute; bottom: 12px; left: 12px; right: 12px;
+      display: flex; align-items: center; gap: 10px;
+      background: rgba(0,0,0,0.55);
+      padding: 6px 10px;
+      border-radius: 2px;
+    }
+    .timeline-bar {
+      flex: 1;
+      height: 26px;
+      background: var(--bg-2);
+      border: 1px solid var(--border-2);
+      border-radius: 2px;
+      position: relative;
+    }
+    .tl-event {
+      position: absolute; top: 4px; bottom: 4px;
+      width: 2px; background: var(--warn);
+    }
+    .tl-event.crit { background: var(--crit); }
+    .tl-event.info { background: var(--signal); }
+    .tl-cursor {
+      position: absolute; top: -6px; bottom: -6px; width: 2px; background: var(--telemetry);
+    }
+    .tl-cursor::before {
+      content: ""; position: absolute; left: -3px; top: -2px;
+      width: 8px; height: 8px; background: var(--telemetry); transform: rotate(45deg);
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script src="./js/alwon.js"></script>
+  <script>
+    const mainHtml = `
+      <div class="page-header">
+        <div class="crumb">
+          <span>OPERATIONS</span><span class="sep">/</span>
+          <span class="accent">Loss Prevention</span><span class="sep">·</span>
+          <span class="mono dim">forensic queue</span>
+        </div>
+        <span class="pill warn">12 PENDING</span>
+        <span class="pill ghost dim">avg confidence · 0.84</span>
+        <span class="pill ghost dim">retention · 30d · clip-only</span>
+        <div class="right">
+          <button class="btn tiny">Review rules</button>
+          <button class="btn tiny">Export case</button>
+          <button class="btn tiny primary">Escalate to security</button>
+        </div>
+      </div>
+
+      <div class="tabbar">
+        <div class="tab active">Pending review <span class="tab-count">12</span></div>
+        <div class="tab">In review <span class="tab-count">3</span></div>
+        <div class="tab">Confirmed <span class="tab-count">8</span></div>
+        <div class="tab">Dismissed · 7d <span class="tab-count">42</span></div>
+        <div class="tab">Cases <span class="tab-count">2</span></div>
+        <div class="tab">Watchlist <span class="tab-count">14</span></div>
+      </div>
+
+      <div class="kpi-strip" style="grid-template-columns: repeat(6, 1fr);">
+        <div class="kpi"><div class="kpi-label">PENDING</div><div class="kpi-value fg-warn">12</div><div class="kpi-delta"><span class="ref">ack ≤ 15m · SLA</span></div></div>
+        <div class="kpi"><div class="kpi-label">7D FLAGS</div><div class="kpi-value">87</div><div class="kpi-delta"><span class="ref">avg 12.4/d</span></div></div>
+        <div class="kpi"><div class="kpi-label">CONFIRM RATE</div><div class="kpi-value">18<span class="kpi-unit">%</span></div><div class="kpi-delta"><span class="ref">7d · 16/87</span></div></div>
+        <div class="kpi"><div class="kpi-label">AVG CONFIDENCE</div><div class="kpi-value">0.84</div><div class="kpi-delta"><span class="ref">threshold ≥ 0.65</span></div></div>
+        <div class="kpi"><div class="kpi-label">RESPONSE p95</div><div class="kpi-value">8m 12s</div><div class="kpi-delta"><span class="delta up">▼ 1m 04s</span></div></div>
+        <div class="kpi"><div class="kpi-label">RECOVERED · 7D</div><div class="kpi-value">$ 184k</div><div class="kpi-delta"><span class="ref">COP · 9 events</span></div></div>
+      </div>
+
+      <div class="lp-layout">
+
+        <!-- QUEUE -->
+        <div class="cell" style="overflow-y: auto;">
+          <div class="panel-head">
+            <span class="label">CH 1</span>
+            <span class="title">Review queue</span>
+            <span class="pill warn">12</span>
+            <div class="right"><span class="dim mono">conf ≥ 0.65</span></div>
+          </div>
+          ${lpRow({ id: 'cam-7', title: 'concealment.flag · cam-7', sub: 'conf 0.84 · dwell 14.2s · zone C', age: '04m', selected: true, hasBox: true })}
+          ${lpRow({ id: 'cam-3', title: 'concealment.flag · cam-3', sub: 'conf 0.88 · dwell 22.1s · zone B', age: '07m' })}
+          ${lpRow({ id: 'cam-5', title: 'scan-avoid.candidate · cam-5', sub: 'conf 0.78 · pos lanes · POS-05', age: '34m' })}
+          ${lpRow({ id: 'cam-2', title: 'item.exchange · cam-2', sub: 'conf 0.71 · cooler swap detected', age: '52m' })}
+          ${lpRow({ id: 'cam-7', title: 'concealment.flag · cam-7', sub: 'conf 0.69 · dwell 11.0s', age: '1h 12m' })}
+          ${lpRow({ id: 'cam-4', title: 'staff-only.entry · cam-4', sub: 'conf 0.92 · back room · 14:02', age: '1h 28m' })}
+          ${lpRow({ id: 'cam-8', title: 'tagged.bypass · cam-8', sub: 'conf 0.74 · exit · sku 0xaa12', age: '1h 41m' })}
+          ${lpRow({ id: 'cam-1', title: 'lingering.entry · cam-1', sub: 'conf 0.66 · 28s · no scan', age: '2h 12m' })}
+          ${lpRow({ id: 'cam-6', title: 'office.unauthorised · cam-6', sub: 'conf 0.81 · office · non-staff', age: '2h 38m' })}
+        </div>
+
+        <!-- VIEWER -->
+        <div class="cell">
+          <div class="panel-head">
+            <span class="label">CH 2</span>
+            <span class="title">Frame viewer · cam-7</span>
+            <span class="pill telem">REC</span>
+            <span class="pill ghost dim">14:22:38 → 14:22:52 UTC</span>
+            <div class="right">
+              <span class="dim mono">track t_88401 · conf 0.84</span>
+              <button class="btn tiny ghost">FULL</button>
+            </div>
+          </div>
+
+          <div class="viewer-frame">
+            <span class="scan"></span>
+            <div class="viewer-overlay">
+              <span class="tracker-label" style="left: 38%; top: 30%;">t_88401 · 0.84</span>
+              <div class="bbox" style="left: 38%; top: 30%; width: 22%; height: 46%"></div>
+              <span class="tracker-label alt" style="left: 12%; top: 56%; color: var(--telemetry);">t_88402 · 0.96</span>
+              <div class="bbox alt" style="left: 12%; top: 56%; width: 14%; height: 30%"></div>
+            </div>
+            <div class="viewer-meta">
+              <span class="live-row"><span class="pulse crit"></span><span class="fg-crit">REC · CONCEAL.FLAG</span></span>
+              <span class="crosshair">CAM-7 · ZONE C · 1080p · 24fps</span>
+              <span class="crosshair">14:22:45.001 UTC · t_88401 / dwell 14.2s</span>
+            </div>
+            <div class="viewer-controls">
+              <div class="row mono s11 dim">
+                <span class="fg-info">▮▶</span>
+                <span class="up">14:22:45.001</span>
+                <span class="dim-2">/</span>
+                <span>14:22:52.000</span>
+              </div>
+              <div class="timeline-bar">
+                <div class="tl-event info" style="left: 8%"></div>
+                <div class="tl-event info" style="left: 16%"></div>
+                <div class="tl-event" style="left: 32%"></div>
+                <div class="tl-event crit" style="left: 48%"></div>
+                <div class="tl-event" style="left: 64%"></div>
+                <div class="tl-event info" style="left: 78%"></div>
+                <div class="tl-cursor" style="left: 48%"></div>
+              </div>
+              <div class="row mono s11 dim">
+                <span>0.5×</span>
+                <span class="up">1×</span>
+                <span>2×</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- DETAIL -->
+        <div class="cell" style="overflow-y: auto;">
+          <div class="panel-head">
+            <span class="label">CH 3</span>
+            <span class="title">Case detail</span>
+            <span class="pill crit">CONF 0.84</span>
+          </div>
+
+          <div style="padding: 12px 14px; border-bottom: 1px solid var(--border-1);">
+            <div class="mono s11 dim" style="margin-bottom: 4px;">LP-9241 · vision.concealment_flag · auto-flagged</div>
+            <div class="s14 up" style="line-height: 1.35;">Track t_88401 · dwell 14.2s in zone C with basket open · likely concealment of sku 0x7281 ("Postobón Cola 400ml") into outerwear</div>
+            <div style="display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap;">
+              <span class="pill warn">REVIEW · PENDING</span>
+              <span class="pill telem">cam-7</span>
+              <span class="pill ghost dim">trace_92ab4f</span>
+              <span class="pill ghost dim">track t_88401</span>
+            </div>
+          </div>
+
+          <div class="panel-head">
+            <span class="label">CH 4</span>
+            <span class="title">Observations</span>
+          </div>
+          <div style="font-size: var(--t-12); color: var(--fg-1); padding: 10px 14px; border-bottom: 1px solid var(--border-1); line-height: 1.5;">
+            <div style="display: flex; gap: 8px; margin-bottom: 6px;"><span class="pill ok tiny">VISION</span> Dwell 14.2s exceeds zone-C baseline (3.4s · p95).</div>
+            <div style="display: flex; gap: 8px; margin-bottom: 6px;"><span class="pill telem tiny">POSE</span> Hand-to-pocket gesture at 14:22:41.2 · confidence 0.92.</div>
+            <div style="display: flex; gap: 8px; margin-bottom: 6px;"><span class="pill telem tiny">BASKET</span> No scan event between 14:22:41 → 14:22:44 (basket open · POS-05).</div>
+            <div style="display: flex; gap: 8px;"><span class="pill warn tiny">EXIT</span> Track did not cross POS lane prior to exit · unresolved at 14:22:52.</div>
+          </div>
+
+          <div class="panel-head">
+            <span class="label">CH 5</span>
+            <span class="title">Linked events</span>
+            <span class="pill ghost dim">7</span>
+          </div>
+          <div style="font-family: var(--font-mono); font-size: var(--t-11);">
+            <div style="padding: 6px 14px; border-bottom: 1px solid var(--border-1); color: var(--fg-1);"><span class="dim s11">14:22:45.001</span> &nbsp; <span class="fg-warn">VISION</span> &nbsp; concealment.flag · conf 0.84</div>
+            <div style="padding: 6px 14px; border-bottom: 1px solid var(--border-1); color: var(--fg-1);"><span class="dim s11">14:22:41.200</span> &nbsp; <span class="fg-telem">POSE</span> &nbsp; hand_to_pocket · conf 0.92</div>
+            <div style="padding: 6px 14px; border-bottom: 1px solid var(--border-1); color: var(--fg-1);"><span class="dim s11">14:22:38.918</span> &nbsp; <span class="fg-info">INV</span> &nbsp; sku 0x7281 · −1 · shelf B-12</div>
+            <div style="padding: 6px 14px; border-bottom: 1px solid var(--border-1); color: var(--fg-1);"><span class="dim s11">14:22:33.401</span> &nbsp; <span class="fg-warn">VISION</span> &nbsp; cam-3 · concealment.flag · conf 0.88</div>
+            <div style="padding: 6px 14px; border-bottom: 1px solid var(--border-1); color: var(--fg-1);"><span class="dim s11">14:22:31.001</span> &nbsp; <span class="fg-telem">VISION</span> &nbsp; zone.entry · cam-1 · track t_88401</div>
+          </div>
+
+          <div style="padding: 12px 14px; display: flex; gap: 6px; flex-wrap: wrap; border-top: 1px solid var(--border-1);">
+            <button class="btn tiny" style="background: var(--ok-bg); color: var(--ok); border-color: rgba(30, 181, 94, 0.32);">Confirm</button>
+            <button class="btn tiny">Open case</button>
+            <button class="btn tiny">Add to watchlist</button>
+            <button class="btn tiny ghost">Dismiss · false positive</button>
+            <button class="btn tiny ghost">Escalate · security</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    function lpRow(o) {
+      return `
+        <div class="lp-queue-item ${o.selected ? 'selected' : ''}">
+          <div class="lp-thumb">
+            <span class="cam">${o.id.toUpperCase()}</span>
+            ${o.hasBox ? '<div class="bbox" style="left: 32%; top: 30%; width: 26%; height: 46%"></div>' : ''}
+          </div>
+          <div class="meta">
+            <div class="title">${o.title}</div>
+            <div class="sub">${o.sub}</div>
+          </div>
+          <div class="age">${o.age}</div>
+        </div>
+      `;
+    }
+
+    ALWON.init({
+      active: 'loss',
+      main: mainHtml,
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=1440, initial-scale=1" />
+  <title>ALWON OS · Inventory · intelligence</title>
+  <link rel="stylesheet" href="./css/alwon.css" />
+  <style>
+    .inv-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 420px;
+      gap: 1px;
+      background: var(--border-1);
+    }
+    .inv-layout > .cell { background: var(--bg-1); display: flex; flex-direction: column; }
+
+    .inv-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--t-12);
+    }
+    .inv-table thead th {
+      text-align: left;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border-2);
+      background: var(--bg-1);
+      font-family: var(--font-mono);
+      font-size: var(--t-10);
+      color: var(--fg-3);
+      text-transform: uppercase;
+      letter-spacing: 0.10em;
+      font-weight: 500;
+      position: sticky; top: 0;
+    }
+    .inv-table tbody td {
+      padding: 7px 12px;
+      border-bottom: 1px solid var(--border-1);
+      vertical-align: middle;
+    }
+    .inv-table tbody tr:hover td { background: var(--bg-2); }
+    .inv-table .mono { font-family: var(--font-mono); font-size: var(--t-11); }
+    .inv-table .num  { font-family: var(--font-mono); text-align: right; }
+    .inv-table .sku-name { color: var(--fg-0); }
+    .inv-table .sku-meta { font-family: var(--font-mono); font-size: var(--t-10); color: var(--fg-3); margin-top: 2px; letter-spacing: 0.02em; }
+
+    /* Shelf map */
+    .shelf-map {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 3px;
+      padding: 14px;
+    }
+    .shelf-cell {
+      aspect-ratio: 1;
+      background: var(--bg-2);
+      border: 1px solid var(--border-2);
+      border-radius: 2px;
+      position: relative;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--fg-3);
+      display: grid;
+      place-items: center;
+      letter-spacing: 0.04em;
+    }
+    .shelf-cell.full { background: rgba(30,181,94,0.18); border-color: rgba(30,181,94,0.45); color: var(--ok); }
+    .shelf-cell.ok   { background: rgba(30,181,94,0.10); border-color: rgba(30,181,94,0.3); color: var(--fg-1); }
+    .shelf-cell.low  { background: rgba(255,181,71,0.18); border-color: rgba(255,181,71,0.50); color: var(--warn); }
+    .shelf-cell.oos  { background: rgba(229,72,77,0.22);  border-color: rgba(229,72,77,0.55); color: var(--crit); }
+    .shelf-cell.aisle {
+      background: transparent;
+      border: 0;
+      color: var(--fg-3);
+      text-transform: uppercase;
+      letter-spacing: 0.10em;
+      font-size: 9px;
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script src="./js/alwon.js"></script>
+  <script>
+    const SKUS = [
+      { sku: '0x7281', name: 'Postobón Cola 400ml',     cat: 'Bebidas',     shelf: 'B-12', vel: '−5.2/h', stock: 0,  par: 18, state: 'oos' },
+      { sku: '0x9442', name: 'Águila Light 330ml',      cat: 'Cervezas',    shelf: 'A-04', vel: '−7.8/h', stock: 0,  par: 24, state: 'oos' },
+      { sku: '0x3187', name: 'Saltín Noel · 6×',        cat: 'Galletas',    shelf: 'C-02', vel: '−4.1/h', stock: 3,  par: 12, state: 'low' },
+      { sku: '0x6f01', name: 'Leche Alpina 1L',         cat: 'Lácteos',     shelf: 'D-01', vel: '−5.8/h', stock: 5,  par: 18, state: 'low' },
+      { sku: '0x2c08', name: 'Bimbo Pan Tajado',        cat: 'Panadería',   shelf: 'E-07', vel: '−4.0/h', stock: 4,  par: 14, state: 'low' },
+      { sku: '0xaa12', name: 'Detodito 145g',           cat: 'Snacks',      shelf: 'F-03', vel: '−5.4/h', stock: 6,  par: 16, state: 'low' },
+      { sku: '0x4019', name: 'Coca Zero 600ml',         cat: 'Bebidas',     shelf: 'D-02', vel: '−5.0/h', stock: 7,  par: 18, state: 'low' },
+      { sku: '0x9b03', name: 'Yogurt Alpina · fresa',   cat: 'Lácteos',     shelf: 'D-04', vel: '−3.2/h', stock: 12, par: 22, state: 'ok'  },
+      { sku: '0x4a92', name: 'Doritos 145g · queso',    cat: 'Snacks',      shelf: 'F-04', vel: '−4.4/h', stock: 14, par: 22, state: 'ok'  },
+      { sku: '0x8c01', name: 'Aguila 330ml · regular',  cat: 'Cervezas',    shelf: 'A-02', vel: '−6.8/h', stock: 18, par: 24, state: 'ok'  },
+      { sku: '0xb501', name: 'Café Sello Rojo 250g',    cat: 'Bebidas',     shelf: 'G-01', vel: '−1.8/h', stock: 28, par: 32, state: 'full' },
+      { sku: '0xcc04', name: 'Arroz Diana 500g',        cat: 'Granos',      shelf: 'H-01', vel: '−2.1/h', stock: 42, par: 48, state: 'full' },
+      { sku: '0xee01', name: 'Pony Malta 330ml',        cat: 'Bebidas',     shelf: 'B-01', vel: '−3.4/h', stock: 18, par: 24, state: 'ok' },
+      { sku: '0xff09', name: 'Margarita papas · sal',   cat: 'Snacks',      shelf: 'F-02', vel: '−4.0/h', stock: 20, par: 24, state: 'ok' },
+      { sku: '0xa901', name: 'Galleta Tosh · arándano', cat: 'Galletas',    shelf: 'C-04', vel: '−1.4/h', stock: 24, par: 28, state: 'ok' },
+    ];
+
+    function pillFor(state) {
+      if (state === 'oos') return '<span class="pill crit">OOS</span>';
+      if (state === 'low') return '<span class="pill warn">LOW · ≤1H</span>';
+      if (state === 'full') return '<span class="pill ok">FULL</span>';
+      return '<span class="pill ghost dim">OK</span>';
+    }
+    function row(s) {
+      return `
+        <tr>
+          <td class="mono">${s.sku}</td>
+          <td>
+            <div class="sku-name">${s.name}</div>
+            <div class="sku-meta">${s.cat} · shelf ${s.shelf}</div>
+          </td>
+          <td class="mono">${s.shelf}</td>
+          <td class="num">${s.vel}</td>
+          <td class="num"><span class="${s.state === 'oos' ? 'fg-crit' : s.state === 'low' ? 'fg-warn' : ''}">${s.stock}</span><span class="dim mono"> / ${s.par}</span></td>
+          <td>
+            <div class="meter ${s.state === 'oos' ? 'crit' : s.state === 'low' ? 'warn' : 'ok'}" style="width: 96px;">
+              <span style="width: ${Math.max(2, (s.stock / s.par) * 100).toFixed(0)}%"></span>
+            </div>
+          </td>
+          <td>${pillFor(s.state)}</td>
+          <td class="mono"><span class="dim">last scan</span> 14:09:${20 + s.stock}</td>
+        </tr>
+      `;
+    }
+
+    function makeMap() {
+      // 12 cols × 8 rows
+      const map = [];
+      const aisles = ['A','B','C','D','E','F','G','H'];
+      // seed deterministic
+      let r = 1009;
+      const rng = () => { r = (r * 9301 + 49297) % 233280; return r / 233280; };
+      for (let row = 0; row < 8; row++) {
+        for (let col = 0; col < 12; col++) {
+          if (col === 0) {
+            map.push(`<div class="shelf-cell aisle">${aisles[row]}</div>`);
+          } else {
+            const k = rng();
+            let cls = 'ok';
+            if (row === 0 && col === 4) cls = 'oos'; // A-04
+            else if (row === 1 && col === 7) cls = 'oos'; // B-12-ish
+            else if (k < 0.10) cls = 'oos';
+            else if (k < 0.30) cls = 'low';
+            else if (k < 0.55) cls = 'ok';
+            else cls = 'full';
+            map.push(`<div class="shelf-cell ${cls}" title="${aisles[row]}-${String(col).padStart(2,'0')}">${col.toString().padStart(2,'0')}</div>`);
+          }
+        }
+      }
+      return map.join('');
+    }
+
+    const mainHtml = `
+      <div class="page-header">
+        <div class="crumb">
+          <span>OPERATIONS</span><span class="sep">/</span>
+          <span class="accent">Inventory</span><span class="sep">·</span>
+          <span class="mono dim">realtime · BOG-001</span>
+        </div>
+        <span class="pill crit">2 OOS</span>
+        <span class="pill warn">7 ≤1H</span>
+        <span class="pill ghost dim">drift · 0.42%</span>
+        <span class="pill ghost dim">last cycle scan · 14:09 UTC · aisles A..F</span>
+        <div class="right">
+          <button class="btn tiny">Cycle scan</button>
+          <button class="btn tiny">Reorder rules</button>
+          <button class="btn tiny primary">Auto-reorder · 7</button>
+        </div>
+      </div>
+
+      <div class="tabbar">
+        <div class="tab active">All SKUs <span class="tab-count">28,418</span></div>
+        <div class="tab">Out-of-stock <span class="tab-count">2</span></div>
+        <div class="tab">Low &amp; predicted <span class="tab-count">12</span></div>
+        <div class="tab">Drift watch <span class="tab-count">42</span></div>
+        <div class="tab">Movement <span class="tab-count">live</span></div>
+        <div class="tab">Suppliers</div>
+      </div>
+
+      <div class="kpi-strip" style="grid-template-columns: repeat(8, 1fr);">
+        <div class="kpi"><div class="kpi-label">SKU TRACKED</div><div class="kpi-value">28,418</div><div class="kpi-delta"><span class="ref">+42 new · 7d</span></div></div>
+        <div class="kpi"><div class="kpi-label">OOS · NOW</div><div class="kpi-value fg-crit">2</div><div class="kpi-delta"><span class="ref">last 24h · 5</span></div></div>
+        <div class="kpi"><div class="kpi-label">PREDICTED OOS · 1H</div><div class="kpi-value fg-warn">7</div><div class="kpi-delta"><span class="ref">reorder armed</span></div></div>
+        <div class="kpi"><div class="kpi-label">DRIFT</div><div class="kpi-value">0.42<span class="kpi-unit">%</span></div><div class="kpi-delta"><span class="delta up">▼ 0.06pp</span></div></div>
+        <div class="kpi"><div class="kpi-label">MOVEMENTS · 1H</div><div class="kpi-value">1,284</div><div class="kpi-delta"><span class="delta up">▲ 12%</span></div></div>
+        <div class="kpi"><div class="kpi-label">SHRINK · 7D</div><div class="kpi-value fg-warn">0.18<span class="kpi-unit">%</span></div><div class="kpi-delta"><span class="ref">target ≤ 0.30</span></div></div>
+        <div class="kpi"><div class="kpi-label">SCAN COVERAGE</div><div class="kpi-value">94<span class="kpi-unit">%</span></div><div class="kpi-delta"><span class="ref">cycle every 4h</span></div></div>
+        <div class="kpi"><div class="kpi-label">REORDERS · 24H</div><div class="kpi-value">14</div><div class="kpi-delta"><span class="ref">9 auto · 5 manual</span></div></div>
+      </div>
+
+      <div class="inv-layout">
+
+        <!-- SKU TABLE -->
+        <div class="cell">
+          <div class="panel-head">
+            <span class="label">CH 1</span>
+            <span class="title">SKU ledger · sorted · urgency</span>
+            <span class="pill warn">12 below par</span>
+            <div class="right"><span class="dim mono">refresh · 1s · live</span></div>
+          </div>
+          <div style="overflow-y: auto;">
+            <table class="inv-table">
+              <thead>
+                <tr>
+                  <th>SKU</th>
+                  <th>NAME</th>
+                  <th>SHELF</th>
+                  <th class="num">VELOCITY</th>
+                  <th class="num">STOCK / PAR</th>
+                  <th>FILL</th>
+                  <th>STATE</th>
+                  <th>LAST SCAN</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${SKUS.map(row).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- SHELF MAP + REORDER QUEUE -->
+        <div class="cell">
+          <div class="panel-head">
+            <span class="label">CH 2</span>
+            <span class="title">Floor heatmap · BOG-001</span>
+            <span class="pill telem">96 bays</span>
+            <div class="right"><span class="dim mono">view · stock-density</span></div>
+          </div>
+          <div class="shelf-map">
+            ${makeMap()}
+          </div>
+          <div class="chart-legend" style="border-top: 1px solid var(--border-1); padding: 8px 14px;">
+            <span class="legend-item" style="color: var(--ok)"><span class="legend-mark"></span>FULL</span>
+            <span class="legend-item" style="color: var(--fg-1)"><span class="legend-mark"></span>OK</span>
+            <span class="legend-item" style="color: var(--warn)"><span class="legend-mark"></span>LOW</span>
+            <span class="legend-item" style="color: var(--crit)"><span class="legend-mark"></span>OOS</span>
+          </div>
+
+          <div class="panel-head" style="border-top: 1px solid var(--border-1);">
+            <span class="label">CH 3</span>
+            <span class="title">Reorder queue · auto-armed</span>
+            <span class="pill info">7</span>
+          </div>
+          <div>
+            <div class="svc-row">
+              <span class="pulse warn"></span>
+              <div>
+                <div class="name">sku 0x7281 · Postobón Cola</div>
+                <div class="sub">qty 24 · supplier coca-cola-fmcg · ETA 2.4h</div>
+              </div>
+              <span class="val fg-warn">OOS</span>
+              <div class="mini-bar warn"><span style="width: 80%"></span></div>
+            </div>
+            <div class="svc-row">
+              <span class="pulse warn"></span>
+              <div>
+                <div class="name">sku 0x9442 · Águila Light</div>
+                <div class="sub">qty 18 · supplier bavaria-co · ETA 3.1h</div>
+              </div>
+              <span class="val fg-warn">OOS</span>
+              <div class="mini-bar warn"><span style="width: 75%"></span></div>
+            </div>
+            <div class="svc-row">
+              <span class="pulse info"></span>
+              <div>
+                <div class="name">sku 0x3187 · Saltín Noel ·6×</div>
+                <div class="sub">qty 12 · supplier noel-foods · ETA 2.8h</div>
+              </div>
+              <span class="val">PRED · 38m</span>
+              <div class="mini-bar"><span style="width: 45%"></span></div>
+            </div>
+            <div class="svc-row">
+              <span class="pulse info"></span>
+              <div>
+                <div class="name">sku 0x6f01 · Leche Alpina 1L</div>
+                <div class="sub">qty 18 · supplier alpina-co · ETA 1.4h</div>
+              </div>
+              <span class="val">PRED · 56m</span>
+              <div class="mini-bar"><span style="width: 32%"></span></div>
+            </div>
+            <div class="svc-row">
+              <span class="pulse info"></span>
+              <div>
+                <div class="name">sku 0x2c08 · Bimbo Pan</div>
+                <div class="sub">qty 14 · supplier bimbo-co · ETA 1.8h</div>
+              </div>
+              <span class="val">PRED · 61m</span>
+              <div class="mini-bar"><span style="width: 28%"></span></div>
+            </div>
+            <div class="svc-row">
+              <span class="pulse info"></span>
+              <div>
+                <div class="name">sku 0xaa12 · Detodito 145g</div>
+                <div class="sub">qty 16 · supplier pepsico-co · ETA 2.2h</div>
+              </div>
+              <span class="val">PRED · 72m</span>
+              <div class="mini-bar"><span style="width: 24%"></span></div>
+            </div>
+            <div class="svc-row">
+              <span class="pulse info"></span>
+              <div>
+                <div class="name">sku 0x4019 · Coca Zero</div>
+                <div class="sub">qty 18 · supplier coca-cola-fmcg · ETA 2.4h</div>
+              </div>
+              <span class="val">PRED · 84m</span>
+              <div class="mini-bar"><span style="width: 18%"></span></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    `;
+
+    ALWON.init({
+      active: 'inventory',
+      main: mainHtml,
+    });
+  </script>
+</body>
+</html>

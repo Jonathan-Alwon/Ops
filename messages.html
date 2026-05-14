@@ -1,0 +1,470 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=1440, initial-scale=1" />
+  <title>ALWON OS · Messages · shared inbox</title>
+  <link rel="stylesheet" href="./css/alwon.css" />
+  <style>
+    .msg-layout {
+      display: grid;
+      grid-template-columns: 200px 360px minmax(0, 1fr) 320px;
+      gap: 1px;
+      background: var(--border-1);
+      height: calc(100vh - var(--topbar-h) - var(--statusbar-h) - 36px - 36px);
+    }
+    .msg-layout > .cell { background: var(--bg-1); min-height: 0; display: flex; flex-direction: column; }
+
+    /* Channel sidebar */
+    .channel-section { padding: 12px 10px 4px; }
+    .channel-section h3 {
+      font-family: var(--font-mono); font-size: var(--t-10); color: var(--fg-3);
+      text-transform: uppercase; letter-spacing: 0.10em; margin: 0 0 6px 0; font-weight: 500;
+      padding: 0 4px;
+    }
+    .ch-row {
+      display: grid;
+      grid-template-columns: 14px 1fr auto;
+      gap: 8px;
+      align-items: center;
+      padding: 5px 6px;
+      font-size: var(--t-12);
+      color: var(--fg-1);
+      cursor: pointer;
+      border-radius: var(--r-3);
+    }
+    .ch-row:hover { background: var(--bg-2); color: var(--fg-0); }
+    .ch-row.active { background: var(--bg-3); color: var(--fg-0); }
+    .ch-row .badge {
+      font-family: var(--font-mono);
+      font-size: var(--t-10);
+      color: var(--fg-3);
+      letter-spacing: 0.04em;
+    }
+    .ch-row.unread .badge {
+      background: var(--signal);
+      color: #fff;
+      padding: 1px 5px;
+      border-radius: 8px;
+      font-size: 9px;
+    }
+
+    /* Conversation list */
+    .conv-item {
+      display: grid;
+      grid-template-columns: 32px 1fr auto;
+      gap: 10px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border-1);
+      cursor: pointer;
+      align-items: start;
+    }
+    .conv-item:hover { background: var(--bg-2); }
+    .conv-item.selected { background: var(--bg-3); }
+    .conv-item .avatar { margin-top: 2px; width: 30px; height: 30px; flex: 0 0 30px; }
+    .conv-item .meta { min-width: 0; }
+    .conv-item .meta .row1 {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 2px;
+    }
+    .conv-item .meta .name { font-size: var(--t-12); color: var(--fg-0); font-weight: 500; }
+    .conv-item .meta .channel { font-family: var(--font-mono); font-size: var(--t-10); color: var(--fg-3); letter-spacing: 0.04em; text-transform: uppercase; }
+    .conv-item .meta .preview {
+      color: var(--fg-2); font-size: var(--t-12); line-height: 1.35;
+      overflow: hidden; text-overflow: ellipsis;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    }
+    .conv-item .meta .preview .last-from {
+      font-family: var(--font-mono); font-size: var(--t-10); color: var(--fg-3); letter-spacing: 0.04em;
+    }
+    .conv-item.unread .meta .name { color: var(--fg-0); }
+    .conv-item.unread::before {
+      content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 2px; background: var(--signal);
+    }
+    .conv-item { position: relative; }
+    .conv-item .conv-meta {
+      text-align: right; display: flex; flex-direction: column; gap: 3px; align-items: flex-end;
+    }
+    .conv-item .conv-meta .age {
+      font-family: var(--font-mono); font-size: var(--t-10); color: var(--fg-3); letter-spacing: 0.04em;
+    }
+
+    /* Thread */
+    .thread {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 20px;
+    }
+    .thread-bubble {
+      max-width: 70%;
+      padding: 9px 12px;
+      border-radius: 8px;
+      font-size: var(--t-13);
+      line-height: 1.45;
+      margin-bottom: 6px;
+    }
+    .thread-bubble.in {
+      background: var(--bg-2);
+      border: 1px solid var(--border-2);
+      color: var(--fg-0);
+      border-bottom-left-radius: 2px;
+      margin-right: auto;
+    }
+    .thread-bubble.out {
+      background: var(--signal);
+      color: #fff;
+      border-bottom-right-radius: 2px;
+      margin-left: auto;
+    }
+    .thread-bubble.note {
+      background: var(--warn-bg);
+      border: 1px solid rgba(255, 181, 71, 0.32);
+      color: var(--warn);
+      font-family: var(--font-mono);
+      font-size: var(--t-11);
+      max-width: 80%;
+      margin: 6px auto;
+      letter-spacing: 0.01em;
+    }
+    .thread-meta {
+      display: flex; align-items: center; gap: 6px;
+      margin-top: 4px; margin-bottom: 14px;
+      font-family: var(--font-mono); font-size: var(--t-10);
+      color: var(--fg-3); letter-spacing: 0.04em;
+    }
+    .thread-meta.out { justify-content: flex-end; }
+    .thread-section-label {
+      text-align: center;
+      font-family: var(--font-mono); font-size: var(--t-10); letter-spacing: 0.10em;
+      color: var(--fg-3); text-transform: uppercase;
+      margin: 12px 0 12px 0;
+      position: relative;
+    }
+    .thread-section-label::before, .thread-section-label::after {
+      content: ""; position: absolute; top: 50%; width: 30%; height: 1px; background: var(--border-1);
+    }
+    .thread-section-label::before { left: 0; }
+    .thread-section-label::after  { right: 0; }
+
+    .composer {
+      border-top: 1px solid var(--border-1);
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--bg-1);
+    }
+    .composer .input {
+      flex: 1;
+      background: var(--bg-2);
+      border: 1px solid var(--border-2);
+      border-radius: var(--r-3);
+      padding: 8px 10px;
+      color: var(--fg-1);
+      font-size: var(--t-13);
+    }
+
+    /* Customer panel */
+    .cust-panel { padding: 0; }
+    .cust-head {
+      display: flex; flex-direction: column; gap: 6px;
+      padding: 14px;
+      border-bottom: 1px solid var(--border-1);
+    }
+    .cust-head .name { color: var(--fg-0); font-size: var(--t-14); }
+    .cust-head .id { font-family: var(--font-mono); font-size: var(--t-10); color: var(--fg-3); letter-spacing: 0.04em; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script src="./js/alwon.js"></script>
+  <script>
+    function av(initials) { return `<span class="avatar">${initials}</span>`; }
+
+    const mainHtml = `
+      <div class="page-header">
+        <div class="crumb">
+          <span>OPERATIONS</span><span class="sep">/</span>
+          <span class="accent">Messages</span><span class="sep">·</span>
+          <span class="mono dim">shared inbox</span>
+        </div>
+        <span class="pill info">7 UNREAD</span>
+        <span class="pill ghost dim">3 assigned to me</span>
+        <span class="pill ghost dim">avg first response · 2m 14s</span>
+        <div class="right">
+          <button class="btn tiny">Auto-routing</button>
+          <button class="btn tiny">Templates</button>
+          <button class="btn tiny primary">New conversation</button>
+        </div>
+      </div>
+
+      <div class="tabbar">
+        <div class="tab active">Inbox <span class="tab-count">14</span></div>
+        <div class="tab">Mine <span class="tab-count">3</span></div>
+        <div class="tab">Unassigned <span class="tab-count">4</span></div>
+        <div class="tab">Resolved · today <span class="tab-count">22</span></div>
+        <div class="tab">Archive</div>
+      </div>
+
+      <div class="msg-layout">
+
+        <!-- CHANNELS -->
+        <div class="cell" style="overflow-y: auto;">
+          <div class="channel-section">
+            <h3>STATE</h3>
+            <div class="ch-row unread"><span class="dot info"></span> Unread <span class="badge">7</span></div>
+            <div class="ch-row active"><span class="dot info"></span> All open <span class="badge">14</span></div>
+            <div class="ch-row"><span class="dot ok"></span> Awaiting customer <span class="badge">6</span></div>
+            <div class="ch-row"><span class="dot warn"></span> Awaiting operator <span class="badge">4</span></div>
+            <div class="ch-row"><span class="dot crit"></span> Escalated <span class="badge">2</span></div>
+          </div>
+          <div class="channel-section">
+            <h3>CHANNEL</h3>
+            <div class="ch-row"><span class="dot ok"></span> Email <span class="badge">3</span></div>
+            <div class="ch-row unread"><span class="dot ok"></span> WhatsApp · Cloud API <span class="badge">5</span></div>
+            <div class="ch-row"><span class="dot ok"></span> Web · in-store kiosk <span class="badge">2</span></div>
+            <div class="ch-row"><span class="dot ok"></span> Receipt SMS reply <span class="badge">4</span></div>
+          </div>
+          <div class="channel-section">
+            <h3>TOPIC</h3>
+            <div class="ch-row"><span class="dim mono tiny">▸</span> Receipt / fiscal <span class="badge">4</span></div>
+            <div class="ch-row"><span class="dim mono tiny">▸</span> Refund / dispute <span class="badge">3</span></div>
+            <div class="ch-row"><span class="dim mono tiny">▸</span> Product unavailable <span class="badge">2</span></div>
+            <div class="ch-row"><span class="dim mono tiny">▸</span> POS issue <span class="badge">2</span></div>
+            <div class="ch-row"><span class="dim mono tiny">▸</span> Loyalty / app <span class="badge">3</span></div>
+          </div>
+          <div class="channel-section">
+            <h3>ASSIGNEE</h3>
+            <div class="ch-row"><span class="dot ok"></span> jonathan.j <span class="badge">3</span></div>
+            <div class="ch-row"><span class="dot ok"></span> sara.b <span class="badge">2</span></div>
+            <div class="ch-row"><span class="dot ok"></span> diego.s <span class="badge">2</span></div>
+            <div class="ch-row"><span class="dot idle"></span> luisa.m <span class="badge">3</span></div>
+            <div class="ch-row"><span class="dot warn"></span> Unassigned <span class="badge">4</span></div>
+          </div>
+        </div>
+
+        <!-- CONVERSATIONS -->
+        <div class="cell">
+          <div class="panel-head">
+            <span class="label">CH 1</span>
+            <span class="title">Open conversations</span>
+            <span class="pill info">14</span>
+            <div class="right"><span class="dim mono">sort · last update ↓</span></div>
+          </div>
+          <div style="flex: 1; overflow-y: auto;">
+
+            <div class="conv-item unread selected">
+              ${av('AM')}
+              <div class="meta">
+                <div class="row1"><span class="name">Andrea Mejía</span><span class="channel">WHATSAPP · +57 ·· 4019</span></div>
+                <div class="preview"><span class="last-from">customer ›</span> hola, no me llegó el recibo de la compra de hoy a las 14:08, tx 8f3a-2e89</div>
+              </div>
+              <div class="conv-meta">
+                <span class="pill crit tiny">esc</span>
+                <span class="age">02m</span>
+                <span class="dot info"></span>
+              </div>
+            </div>
+
+            <div class="conv-item unread">
+              ${av('JR')}
+              <div class="meta">
+                <div class="row1"><span class="name">Juan R.</span><span class="channel">EMAIL · juan@…</span></div>
+                <div class="preview"><span class="last-from">customer ›</span> reclamo por cobro doble en pse, transacción de hoy · ref 8f3a-2e7d</div>
+              </div>
+              <div class="conv-meta">
+                <span class="pill warn tiny">refund</span>
+                <span class="age">14m</span>
+              </div>
+            </div>
+
+            <div class="conv-item unread">
+              ${av('SC')}
+              <div class="meta">
+                <div class="row1"><span class="name">Sofía C.</span><span class="channel">WHATSAPP · +57 ·· 8821</span></div>
+                <div class="preview"><span class="last-from">customer ›</span> el datafono no me aceptó la amex, dice declined 05 pero el banco me confirma que el cargo intentó</div>
+              </div>
+              <div class="conv-meta">
+                <span class="age">18m</span>
+              </div>
+            </div>
+
+            <div class="conv-item unread">
+              ${av('CR')}
+              <div class="meta">
+                <div class="row1"><span class="name">Carolina R.</span><span class="channel">KIOSK · BOG-001</span></div>
+                <div class="preview"><span class="last-from">customer ›</span> falta una unidad de leche alpina 1L en mi pedido, ya pagué</div>
+              </div>
+              <div class="conv-meta">
+                <span class="age">28m</span>
+              </div>
+            </div>
+
+            <div class="conv-item">
+              ${av('LM')}
+              <div class="meta">
+                <div class="row1"><span class="name">Luis M.</span><span class="channel">SMS · +57 ·· 1144</span></div>
+                <div class="preview"><span class="last-from">luisa.m ›</span> ok, enviado pdf del recibo a su correo · trans 8f3a-2e80</div>
+              </div>
+              <div class="conv-meta">
+                <span class="age">42m</span>
+                <span class="dot ok"></span>
+              </div>
+            </div>
+
+            <div class="conv-item">
+              ${av('MM')}
+              <div class="meta">
+                <div class="row1"><span class="name">Mariana M.</span><span class="channel">EMAIL · mariana@…</span></div>
+                <div class="preview"><span class="last-from">jonathan.j ›</span> confirmed refund of $ 28.420 issued to ****5341, eta 3-5 días</div>
+              </div>
+              <div class="conv-meta">
+                <span class="age">1h 12m</span>
+                <span class="dot ok"></span>
+              </div>
+            </div>
+
+            <div class="conv-item">
+              ${av('DS')}
+              <div class="meta">
+                <div class="row1"><span class="name">Daniela S.</span><span class="channel">WHATSAPP · +57 ·· 7842</span></div>
+                <div class="preview"><span class="last-from">customer ›</span> les escribo para reportar que la cola postobón 400 está agotada hace 2 días</div>
+              </div>
+              <div class="conv-meta">
+                <span class="age">1h 38m</span>
+              </div>
+            </div>
+
+            <div class="conv-item">
+              ${av('PR')}
+              <div class="meta">
+                <div class="row1"><span class="name">Pablo R.</span><span class="channel">EMAIL · pablo@…</span></div>
+                <div class="preview"><span class="last-from">sara.b ›</span> we will adjust the loyalty points on your next purchase; sorry for the inconvenience</div>
+              </div>
+              <div class="conv-meta">
+                <span class="age">2h 12m</span>
+                <span class="dot ok"></span>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- THREAD -->
+        <div class="cell">
+          <div class="panel-head" style="height: 56px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span class="avatar">AM</span>
+              <div>
+                <div class="up s14 mono" style="letter-spacing: 0;">Andrea Mejía</div>
+                <div class="mono dim s11" style="letter-spacing: 0.04em;">WhatsApp Cloud · +57 318 ·· 4019 · BOG-001 · txn 8f3a-2e89</div>
+              </div>
+            </div>
+            <div class="right">
+              <span class="pill crit">ESCALATED</span>
+              <span class="pill ghost dim">assigned · jonathan.j</span>
+              <button class="btn tiny">Snooze 1h</button>
+              <button class="btn tiny">Reassign</button>
+              <button class="btn tiny primary">Resolve</button>
+            </div>
+          </div>
+
+          <div class="thread">
+            <div class="thread-section-label">today · 14:08</div>
+
+            <div class="thread-bubble in">Hola, acabo de comprar en su tienda en Chapinero pero no me llegó el recibo electrónico al correo. Pagué con pse, transacción 8f3a-2e89.</div>
+            <div class="thread-meta">Andrea Mejía · 14:08:24</div>
+
+            <div class="thread-bubble note">[INTERNAL] auto-rule · matched topic · receipt.missing · auto-pulled txn 8f3a-2e89 ($ 88.940 · pse · settled 14:09 UTC)</div>
+
+            <div class="thread-bubble out">Hola Andrea, gracias por escribir. Acabo de localizar su transacción · revisando el envío del recibo ahora.</div>
+            <div class="thread-meta out">jonathan.j · 14:09:48 · sent · ✓ delivered · ✓ read</div>
+
+            <div class="thread-bubble out">Veo que el correo en su perfil quedó con un typo. ¿Me confirma su correo correcto?</div>
+            <div class="thread-meta out">jonathan.j · 14:10:12</div>
+
+            <div class="thread-bubble in">andrea.mejia@gmail.com · gracias!</div>
+            <div class="thread-meta">Andrea Mejía · 14:18:32</div>
+
+            <div class="thread-bubble note">[INTERNAL] sara.b · I checked the fiscal API · receipt reissued ok at 14:20:08 UTC · DIAN ack received</div>
+
+            <div class="thread-bubble out">Listo, le acabo de reenviar el recibo electrónico al correo correcto. Si no le llega en 5 minutos, avíseme.</div>
+            <div class="thread-meta out">jonathan.j · 14:20:22</div>
+
+            <div class="thread-bubble in">Perfecto, ya me llegó. Mil gracias :)</div>
+            <div class="thread-meta">Andrea Mejía · 14:21:48</div>
+          </div>
+
+          <div class="composer">
+            <div class="input" contenteditable>Type a reply… <span class="dim mono">/ for templates · @ to mention operator</span></div>
+            <button class="btn tiny ghost">/templates</button>
+            <button class="btn tiny ghost">@mention</button>
+            <button class="btn tiny primary">Send · ↵</button>
+          </div>
+        </div>
+
+        <!-- CUSTOMER CONTEXT -->
+        <div class="cell" style="overflow-y: auto;">
+          <div class="cust-head">
+            <span class="name">Andrea Mejía</span>
+            <span class="id">cust_a4f81b · since 2024-09-14 · 24 visits</span>
+            <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px;">
+              <span class="pill ok">VERIFIED</span>
+              <span class="pill telem">LOYALTY · 1,284 pts</span>
+              <span class="pill ghost dim">no disputes</span>
+            </div>
+          </div>
+
+          <div class="panel-head">
+            <span class="label">CH 2</span>
+            <span class="title">Last transactions</span>
+            <span class="pill ghost dim">last 7d</span>
+          </div>
+          <div style="font-family: var(--font-mono); font-size: var(--t-11);">
+            <div class="t-row sev-info" style="border-bottom: 1px solid var(--border-1); padding: 8px 14px;">
+              <span class="ts dim">14:08:24</span>
+              <span class="msg up">pse · $ 88.940 · POS-05 · ✓ settled</span>
+              <span class="meta">8f3a-2e89</span>
+            </div>
+            <div class="t-row sev-ok" style="border-bottom: 1px solid var(--border-1); padding: 8px 14px;">
+              <span class="ts dim">2d ago</span>
+              <span class="msg">visa ****4019 · $ 24.180 · POS-02</span>
+              <span class="meta">8b21-aa31</span>
+            </div>
+            <div class="t-row sev-ok" style="border-bottom: 1px solid var(--border-1); padding: 8px 14px;">
+              <span class="ts dim">4d ago</span>
+              <span class="msg">nequi.qr · $ 18.420 · POS-01</span>
+              <span class="meta">88f1-9c20</span>
+            </div>
+            <div class="t-row sev-ok" style="border-bottom: 1px solid var(--border-1); padding: 8px 14px;">
+              <span class="ts dim">6d ago</span>
+              <span class="msg">visa ****4019 · $ 42.180 · POS-03</span>
+              <span class="meta">8714-3b21</span>
+            </div>
+          </div>
+
+          <div class="panel-head" style="border-top: 1px solid var(--border-1);">
+            <span class="label">CH 3</span>
+            <span class="title">Notes &amp; tags</span>
+          </div>
+          <div style="padding: 10px 14px; font-size: var(--t-12); color: var(--fg-1); line-height: 1.5;">
+            <div style="margin-bottom: 8px;"><span class="dim mono s11">2024-12-04 · sara.b</span><br>Customer prefers WhatsApp over email · auto-route on next thread.</div>
+            <div><span class="dim mono s11">2024-11-22 · jonathan.j</span><br>Loyalty bonus 200 pts applied for receipt issue.</div>
+          </div>
+
+          <div class="panel-head" style="border-top: 1px solid var(--border-1);">
+            <span class="label">CH 4</span>
+            <span class="title">Linked incidents</span>
+            <span class="pill ghost dim">0</span>
+          </div>
+          <div style="padding: 10px 14px; font-size: var(--t-12); color: var(--fg-3);">No incidents linked.</div>
+        </div>
+      </div>
+    `;
+
+    ALWON.init({
+      active: 'messages',
+      main: mainHtml,
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=1440, initial-scale=1" />
+  <title>ALWON OS · Payments · infrastructure</title>
+  <link rel="stylesheet" href="./css/alwon.css" />
+  <style>
+    .pay-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 1px;
+      background: var(--border-1);
+    }
+    .pay-grid > .cell { background: var(--bg-1); display: flex; flex-direction: column; }
+    .pay-grid .span-2 { grid-column: span 2; }
+    .pay-grid .span-3 { grid-column: span 3; }
+
+    .tx-grid {
+      display: grid;
+      grid-template-columns: 100px 110px 1fr 90px 100px 80px 70px 80px;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 12px;
+      border-bottom: 1px solid var(--border-1);
+      font-size: var(--t-12);
+      font-family: var(--font-mono);
+      cursor: pointer;
+    }
+    .tx-grid:hover { background: var(--bg-2); }
+    .tx-grid.heading {
+      background: var(--bg-1);
+      border-bottom: 1px solid var(--border-2);
+      cursor: default;
+    }
+    .tx-grid.heading span {
+      font-size: var(--t-10);
+      color: var(--fg-3);
+      text-transform: uppercase;
+      letter-spacing: 0.10em;
+      font-family: var(--font-mono);
+    }
+    .tx-grid .ts { font-size: var(--t-10); color: var(--fg-3); }
+    .tx-grid .id { color: var(--fg-2); font-size: var(--t-11); }
+    .tx-grid .desc { color: var(--fg-0); font-size: var(--t-11); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tx-grid .amount { color: var(--fg-0); font-size: var(--t-12); text-align: right; }
+    .tx-grid .proc { color: var(--fg-1); font-size: var(--t-10); text-transform: uppercase; letter-spacing: 0.08em; }
+    .tx-grid .lat { color: var(--fg-2); font-size: var(--t-10); text-align: right; }
+
+    .processor-block {
+      padding: 12px;
+      border-bottom: 1px solid var(--border-1);
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 12px;
+    }
+    .processor-block .name {
+      font-family: var(--font-mono); font-size: var(--t-12); color: var(--fg-0);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .processor-block .sub {
+      font-family: var(--font-mono); font-size: var(--t-10); color: var(--fg-3);
+      letter-spacing: 0.04em; margin-top: 4px;
+    }
+    .processor-block .rate {
+      font-family: var(--font-mono); font-size: var(--t-20); color: var(--fg-0);
+      letter-spacing: -0.01em;
+    }
+    .processor-block .lat {
+      font-family: var(--font-mono); font-size: var(--t-10); color: var(--fg-2);
+      letter-spacing: 0.04em; text-align: right;
+    }
+    .processor-block .mini-spark {
+      grid-column: span 2;
+      height: 28px;
+      margin-top: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script src="./js/alwon.js"></script>
+  <script>
+    function txRow(o) {
+      const sevClass = o.state === 'declined' ? 'crit' : o.state === 'retry' ? 'warn' : 'ok';
+      return `
+        <div class="tx-grid">
+          <span class="ts">${o.ts}</span>
+          <span class="id">${o.id}</span>
+          <span class="desc">${o.desc}</span>
+          <span class="amount">$ ${o.amount}</span>
+          <span class="proc">${o.proc}</span>
+          <span class="pill ${sevClass}">${o.state.toUpperCase()}</span>
+          <span class="lat">${o.lat}</span>
+          <span class="pill ghost dim">${o.pos}</span>
+        </div>
+      `;
+    }
+    const TX = [
+      { ts: '14:22:47.124', id: '8f3a-2e91', desc: 'auth · visa ****4019 · POS-01 · 3 items', amount: '14.300', proc: 'stripe.co', state: 'ok', lat: '142ms', pos: 'POS-01' },
+      { ts: '14:22:46.802', id: '8f3a-2e90', desc: 'auth · mastercard ****5341 · POS-02 · 11 items', amount: '58.420', proc: 'stripe.co', state: 'ok', lat: '158ms', pos: 'POS-02' },
+      { ts: '14:22:43.918', id: '8f3a-2e89', desc: 'auth · pse · t/o 1.42s → retry 2/3', amount: '88.940', proc: 'pse', state: 'retry', lat: '1.42s', pos: 'POS-05' },
+      { ts: '14:22:42.518', id: '8f3a-2e88', desc: 'auth · amex ****8821 · POS-08 · 9 items', amount: '41.620', proc: 'stripe.co', state: 'ok', lat: '188ms', pos: 'POS-08' },
+      { ts: '14:22:38.812', id: '8f3a-2e87', desc: 'auth · nequi.qr · push.confirm · POS-06', amount: '21.100', proc: 'nequi', state: 'ok', lat: '312ms', pos: 'POS-06' },
+      { ts: '14:22:36.622', id: '8f3a-2e86', desc: 'capture · pse · settled · POS-05', amount: '88.940', proc: 'pse', state: 'ok', lat: '218ms', pos: 'POS-05' },
+      { ts: '14:22:34.001', id: '8f3a-2e85', desc: 'auth · visa ****0428 · POS-10 · 6 items', amount: '26.840', proc: 'stripe.co', state: 'ok', lat: '124ms', pos: 'POS-10' },
+      { ts: '14:22:31.218', id: '8f3a-2e84', desc: 'auth · mc ****8821 · DECLINED · code 05', amount: '14.220', proc: 'stripe.co', state: 'declined', lat: '86ms', pos: 'POS-08' },
+      { ts: '14:22:28.518', id: '8f3a-2e83', desc: 'auth · visa ****1144 · POS-11 · 12 items', amount: '62.140', proc: 'stripe.co', state: 'ok', lat: '138ms', pos: 'POS-11' },
+      { ts: '14:22:24.918', id: '8f3a-2e82', desc: 'auth · nequi.qr · push.miss → retry', amount: '12.480', proc: 'nequi', state: 'retry', lat: '4.20s', pos: 'POS-16' },
+      { ts: '14:22:22.118', id: '8f3a-2e81', desc: 'auth · pse · ✓ ok · POS-14 · 8 items', amount: '38.180', proc: 'pse', state: 'ok', lat: '618ms', pos: 'POS-14' },
+      { ts: '14:22:18.522', id: '8f3a-2e80', desc: 'auth · maestro ****0091 · POS-17', amount: '34.220', proc: 'credibanco', state: 'ok', lat: '214ms', pos: 'POS-17' },
+      { ts: '14:22:14.301', id: '8f3a-2e7f', desc: 'auth · visa ****7842 · POS-09 · 4 items', amount: '18.120', proc: 'stripe.co', state: 'ok', lat: '132ms', pos: 'POS-09' },
+      { ts: '14:22:11.118', id: '8f3a-2e7e', desc: 'auth · mc ****5341 · POS-04 · 2 items', amount: '6.900', proc: 'stripe.co', state: 'ok', lat: '128ms', pos: 'POS-04' },
+      { ts: '14:22:08.018', id: '8f3a-2e7d', desc: 'auth · qr.nequi · POS-15 · 8 items', amount: '38.180', proc: 'nequi', state: 'ok', lat: '288ms', pos: 'POS-15' },
+      { ts: '14:22:04.218', id: '8f3a-2e7c', desc: 'cash · POS-03 · returned $ 1.820', amount: '32.180', proc: 'cash', state: 'ok', lat: '—', pos: 'POS-03' },
+    ];
+
+    function mini(seed, color) {
+      let s = seed;
+      const rng = () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
+      const pts = [];
+      let v = 60 + rng() * 20;
+      const w = 240, h = 28;
+      const n = 32;
+      for (let i = 0; i < n; i++) {
+        v += (rng() - 0.5) * 12;
+        v = Math.max(6, Math.min(94, v));
+        pts.push(`${(i * w / (n-1)).toFixed(1)},${(h - (v/100)*(h-2) - 1).toFixed(1)}`);
+      }
+      return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="width:100%; height:100%;">
+        <polyline points="${pts.join(' ')}" stroke="${color}" stroke-width="1" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>`;
+    }
+
+    const mainHtml = `
+      <div class="page-header">
+        <div class="crumb">
+          <span>OPERATIONS</span><span class="sep">/</span>
+          <span class="accent">Payments</span><span class="sep">·</span>
+          <span class="mono dim">infrastructure</span>
+        </div>
+        <span class="pill ok">99.62% AUTH</span>
+        <span class="pill warn">pse · DEGRADED</span>
+        <span class="pill ghost dim">5 processors · 4 routes live</span>
+        <span class="pill ghost dim">settlement window · daily · 23:00 UTC</span>
+        <div class="right">
+          <button class="btn tiny">Routing rules</button>
+          <button class="btn tiny">Reconcile</button>
+          <button class="btn tiny primary">Force resync</button>
+        </div>
+      </div>
+
+      <div class="tabbar">
+        <div class="tab active">Transactions</div>
+        <div class="tab">Processor health <span class="tab-count">5</span></div>
+        <div class="tab">Authorisations <span class="tab-count">298/h</span></div>
+        <div class="tab">Captures &amp; settlements</div>
+        <div class="tab">Disputes &amp; refunds <span class="tab-count">3</span></div>
+        <div class="tab">Routing</div>
+      </div>
+
+      <div class="kpi-strip" style="grid-template-columns: repeat(8, 1fr);">
+        <div class="kpi"><div class="kpi-label">AUTH · 1H</div><div class="kpi-value">298</div><div class="kpi-delta"><span class="delta up">▲ 4.2%</span></div></div>
+        <div class="kpi"><div class="kpi-label">AUTH SUCCESS</div><div class="kpi-value">99.62<span class="kpi-unit">%</span></div><div class="kpi-delta"><span class="ref">SLO 99.50</span></div></div>
+        <div class="kpi"><div class="kpi-label">DECLINE RATE</div><div class="kpi-value fg-warn">0.38<span class="kpi-unit">%</span></div><div class="kpi-delta"><span class="ref">7d avg 0.42</span></div></div>
+        <div class="kpi"><div class="kpi-label">RETRIES · 1H</div><div class="kpi-value fg-warn">12</div><div class="kpi-delta"><span class="ref">9 pse · 3 nequi</span></div></div>
+        <div class="kpi"><div class="kpi-label">AVG LATENCY</div><div class="kpi-value">218<span class="kpi-unit">ms</span></div><div class="kpi-delta"><span class="ref">p95 612ms</span></div></div>
+        <div class="kpi"><div class="kpi-label">VOLUME · 1H</div><div class="kpi-value">$ 7.4M</div><div class="kpi-delta"><span class="ref">COP · 298 tx</span></div></div>
+        <div class="kpi"><div class="kpi-label">REFUNDS · 24H</div><div class="kpi-value">3</div><div class="kpi-delta"><span class="ref">$ 84k total</span></div></div>
+        <div class="kpi"><div class="kpi-label">DISPUTES · 7D</div><div class="kpi-value">1</div><div class="kpi-delta"><span class="ref">0.04% · in range</span></div></div>
+      </div>
+
+      <div class="pay-grid">
+
+        <!-- TRANSACTION STREAM -->
+        <div class="cell span-2">
+          <div class="panel-head">
+            <span class="label">CH 1</span>
+            <span class="title">Transaction stream · all processors</span>
+            <span class="pill telem">298/h · 1.0/s sustained</span>
+            <div class="right"><span class="live"><span class="pulse ok"></span>STREAMING</span></div>
+          </div>
+          <div style="overflow-y: auto; flex: 1;">
+            <div class="tx-grid heading">
+              <span>TS</span><span>TX-ID</span><span>DESCRIPTION</span><span class="right">AMOUNT</span><span>PROCESSOR</span><span>STATE</span><span class="right">LAT</span><span>LANE</span>
+            </div>
+            ${TX.map(txRow).join('')}
+          </div>
+        </div>
+
+        <!-- PROCESSOR HEALTH -->
+        <div class="cell">
+          <div class="panel-head">
+            <span class="label">CH 2</span>
+            <span class="title">Processor health</span>
+            <span class="pill warn">1 DEGRADED</span>
+          </div>
+          <div style="overflow-y: auto; flex: 1;">
+            <div class="processor-block">
+              <div>
+                <div class="name"><span class="pulse ok"></span> stripe.co <span class="dim mono tiny">· primary acquirer</span></div>
+                <div class="sub">visa · mastercard · amex · 218 tx/h · routed 70%</div>
+              </div>
+              <div style="text-align: right;">
+                <div class="rate fg-ok">99.71%</div>
+                <div class="lat">p95 128ms · p99 248ms</div>
+              </div>
+              <div class="mini-spark" style="color: var(--ok);">${mini(11, '#1eb55e')}</div>
+            </div>
+            <div class="processor-block">
+              <div>
+                <div class="name"><span class="pulse ok"></span> credibanco <span class="dim mono tiny">· co-acquirer</span></div>
+                <div class="sub">debit · maestro · 42 tx/h · routed 14%</div>
+              </div>
+              <div style="text-align: right;">
+                <div class="rate fg-ok">99.42%</div>
+                <div class="lat">p95 214ms · p99 412ms</div>
+              </div>
+              <div class="mini-spark" style="color: var(--ok);">${mini(23, '#1eb55e')}</div>
+            </div>
+            <div class="processor-block">
+              <div>
+                <div class="name"><span class="pulse warn"></span> pse <span class="dim mono tiny">· wallet · bank.transfer</span></div>
+                <div class="sub">async · push.confirm · 18 tx/h · DEGRADED 22m</div>
+              </div>
+              <div style="text-align: right;">
+                <div class="rate fg-warn">96.18%</div>
+                <div class="lat fg-warn">p99 1.42s · spike</div>
+              </div>
+              <div class="mini-spark" style="color: var(--warn);">${mini(37, '#ffb547')}</div>
+            </div>
+            <div class="processor-block">
+              <div>
+                <div class="name"><span class="pulse ok"></span> nequi <span class="dim mono tiny">· qr · push</span></div>
+                <div class="sub">qr · push.confirm · 22 tx/h · routed 8%</div>
+              </div>
+              <div style="text-align: right;">
+                <div class="rate fg-ok">99.88%</div>
+                <div class="lat">p95 312ms · p99 4.20s</div>
+              </div>
+              <div class="mini-spark" style="color: var(--ok);">${mini(53, '#1eb55e')}</div>
+            </div>
+            <div class="processor-block" style="border-bottom: 0;">
+              <div>
+                <div class="name"><span class="pulse ok"></span> cash <span class="dim mono tiny">· drawer</span></div>
+                <div class="sub">auto-reconcile · 18 tx/h · routed 8%</div>
+              </div>
+              <div style="text-align: right;">
+                <div class="rate fg-ok">100%</div>
+                <div class="lat">no auth · drawer log</div>
+              </div>
+              <div class="mini-spark" style="color: var(--ok);">${mini(71, '#1eb55e')}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- LATENCY DISTRIBUTION -->
+        <div class="cell span-2">
+          <div class="panel-head">
+            <span class="label">CH 3</span>
+            <span class="title">Auth latency distribution · 1h</span>
+            <span class="pill info">298 tx</span>
+            <div class="right"><span class="dim mono">p50 162ms · p95 612ms · p99 1.42s</span></div>
+          </div>
+          <div style="padding: 12px 14px 8px;">
+            <svg viewBox="0 0 1000 180" preserveAspectRatio="none" style="width: 100%; height: 180px;">
+              <g stroke="#1c1f24" stroke-width="1">
+                <line x1="0" y1="30" x2="1000" y2="30"/>
+                <line x1="0" y1="60" x2="1000" y2="60"/>
+                <line x1="0" y1="90" x2="1000" y2="90"/>
+                <line x1="0" y1="120" x2="1000" y2="120"/>
+                <line x1="0" y1="150" x2="1000" y2="150"/>
+              </g>
+              ${histoBars()}
+              <!-- markers -->
+              <line x1="120" y1="0" x2="120" y2="160" stroke="#0690fc" stroke-width="1" stroke-dasharray="3 3"/>
+              <text x="124" y="14" font-family="ui-monospace, monospace" font-size="9" fill="#0690fc">p50 · 162ms</text>
+              <line x1="510" y1="0" x2="510" y2="160" stroke="#ffb547" stroke-width="1" stroke-dasharray="3 3"/>
+              <text x="514" y="14" font-family="ui-monospace, monospace" font-size="9" fill="#ffb547">p95 · 612ms</text>
+              <line x1="780" y1="0" x2="780" y2="160" stroke="#e5484d" stroke-width="1" stroke-dasharray="3 3"/>
+              <text x="784" y="14" font-family="ui-monospace, monospace" font-size="9" fill="#e5484d">p99 · 1.42s</text>
+            </svg>
+            <div class="mono tiny dim" style="display: flex; justify-content: space-between; padding: 0 4px; letter-spacing: 0.04em;">
+              <span>0ms</span><span>200</span><span>400</span><span>600</span><span>800</span><span>1.0s</span><span>1.2s</span><span>1.4s</span><span>1.6s</span><span>2.0s+</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- DECLINE BREAKDOWN -->
+        <div class="cell">
+          <div class="panel-head">
+            <span class="label">CH 4</span>
+            <span class="title">Decline reasons · 24h</span>
+            <span class="pill warn">42</span>
+          </div>
+          <div style="padding: 12px 14px; display: grid; gap: 8px;">
+            <div>
+              <div class="row" style="justify-content: space-between; font-size: var(--t-12);">
+                <span class="mono s11 up">05 · do not honor</span>
+                <span class="mono">18</span>
+              </div>
+              <div class="meter warn"><span style="width: 43%"></span></div>
+            </div>
+            <div>
+              <div class="row" style="justify-content: space-between; font-size: var(--t-12);">
+                <span class="mono s11 up">51 · insufficient funds</span>
+                <span class="mono">12</span>
+              </div>
+              <div class="meter warn"><span style="width: 28%"></span></div>
+            </div>
+            <div>
+              <div class="row" style="justify-content: space-between; font-size: var(--t-12);">
+                <span class="mono s11 up">61 · exceeds withdrawal</span>
+                <span class="mono">6</span>
+              </div>
+              <div class="meter"><span style="width: 14%"></span></div>
+            </div>
+            <div>
+              <div class="row" style="justify-content: space-between; font-size: var(--t-12);">
+                <span class="mono s11 up">14 · invalid card</span>
+                <span class="mono">3</span>
+              </div>
+              <div class="meter"><span style="width: 7%"></span></div>
+            </div>
+            <div>
+              <div class="row" style="justify-content: space-between; font-size: var(--t-12);">
+                <span class="mono s11 up">processor.timeout</span>
+                <span class="mono fg-warn">2</span>
+              </div>
+              <div class="meter crit"><span style="width: 4%"></span></div>
+            </div>
+            <div>
+              <div class="row" style="justify-content: space-between; font-size: var(--t-12);">
+                <span class="mono s11 up">other / unmapped</span>
+                <span class="mono">1</span>
+              </div>
+              <div class="meter"><span style="width: 2%"></span></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    `;
+
+    function histoBars() {
+      const bars = [42, 86, 138, 92, 64, 48, 32, 24, 18, 12, 8, 6, 4, 4, 6, 8, 4, 3, 3, 2, 2, 2, 1, 1, 0, 0, 0, 0, 0, 0];
+      let s = '';
+      const w = 1000 / bars.length;
+      const max = Math.max(...bars);
+      for (let i = 0; i < bars.length; i++) {
+        const x = i * w;
+        const h = (bars[i] / max) * 130;
+        const color = i < 8 ? '#0690fc' : i < 14 ? '#38a8fd' : i < 20 ? '#ffb547' : '#e5484d';
+        s += `<rect x="${x + 1}" y="${160 - h}" width="${w - 2}" height="${h}" fill="${color}" opacity="${bars[i] > 0 ? 0.85 : 0.2}"/>`;
+      }
+      return s;
+    }
+
+    ALWON.init({
+      active: 'payments',
+      main: mainHtml,
+    });
+  </script>
+</body>
+</html>

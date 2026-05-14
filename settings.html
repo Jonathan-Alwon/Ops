@@ -1,0 +1,470 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=1440, initial-scale=1" />
+  <title>ALWON OS · Settings · runtime config</title>
+  <link rel="stylesheet" href="./css/alwon.css" />
+  <style>
+    .settings {
+      display: grid;
+      grid-template-columns: 220px minmax(0, 1fr);
+      gap: 1px;
+      background: var(--border-1);
+      min-height: calc(100vh - var(--topbar-h) - var(--statusbar-h) - 36px - 36px);
+    }
+    .settings > .cell { background: var(--bg-1); display: flex; flex-direction: column; }
+
+    .set-nav-section { padding: 14px 10px 4px; }
+    .set-nav-section h3 {
+      font-family: var(--font-mono); font-size: var(--t-10); color: var(--fg-3);
+      text-transform: uppercase; letter-spacing: 0.10em; margin: 0 0 6px 0; font-weight: 500;
+      padding: 0 4px;
+    }
+    .set-nav-row {
+      display: grid;
+      grid-template-columns: 14px 1fr;
+      gap: 8px;
+      align-items: center;
+      padding: 5px 6px;
+      font-size: var(--t-12);
+      color: var(--fg-1);
+      cursor: pointer;
+      border-radius: var(--r-3);
+    }
+    .set-nav-row:hover { background: var(--bg-2); color: var(--fg-0); }
+    .set-nav-row.active { background: var(--bg-3); color: var(--fg-0); }
+    .set-nav-row .nav-icon { color: var(--fg-2); }
+    .set-nav-row.active .nav-icon { color: var(--fg-0); }
+
+    /* Section + form */
+    .sec {
+      border-bottom: 1px solid var(--border-1);
+    }
+    .sec-head {
+      padding: 16px 20px 8px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: end;
+      gap: 12px;
+    }
+    .sec-head h2 {
+      font-size: var(--t-16); color: var(--fg-0); margin: 0; font-weight: 500;
+      letter-spacing: -0.005em;
+    }
+    .sec-head .sub {
+      font-family: var(--font-mono); font-size: var(--t-11); color: var(--fg-3);
+      letter-spacing: 0.04em; margin-top: 4px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      gap: 14px 24px;
+      padding: 14px 20px 20px;
+    }
+    .form-grid .lbl {
+      font-size: var(--t-12); color: var(--fg-0);
+      padding-top: 6px;
+    }
+    .form-grid .lbl .sub {
+      display: block; font-family: var(--font-mono); font-size: var(--t-10);
+      color: var(--fg-3); letter-spacing: 0.04em; margin-top: 4px; line-height: 1.5;
+    }
+    .form-grid .ctl { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+    .toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .toggle .track {
+      width: 32px; height: 18px;
+      background: var(--bg-3); border-radius: 10px; position: relative;
+      transition: background 0.12s ease;
+      border: 1px solid var(--border-2);
+    }
+    .toggle .knob {
+      position: absolute; left: 1px; top: 1px;
+      width: 14px; height: 14px; background: var(--fg-2); border-radius: 50%;
+      transition: transform 0.12s ease, background 0.12s ease;
+    }
+    .toggle.on .track { background: var(--signal); border-color: var(--signal); }
+    .toggle.on .knob { transform: translateX(14px); background: #fff; }
+    .toggle .lbl { font-size: var(--t-12); color: var(--fg-1); }
+
+    .integration-row {
+      display: grid;
+      grid-template-columns: 8px 38px 1fr auto auto;
+      gap: 12px;
+      align-items: center;
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--border-1);
+      cursor: pointer;
+    }
+    .integration-row:hover { background: var(--bg-2); }
+    .integration-row .logo {
+      width: 30px; height: 30px;
+      background: var(--bg-3); border-radius: var(--r-3); border: 1px solid var(--border-2);
+      display: grid; place-items: center;
+      font-family: var(--font-mono); font-size: var(--t-11); color: var(--fg-0);
+      letter-spacing: 0.04em;
+    }
+    .integration-row .name { font-size: var(--t-13); color: var(--fg-0); }
+    .integration-row .sub { font-family: var(--font-mono); font-size: var(--t-10); color: var(--fg-3); letter-spacing: 0.02em; margin-top: 2px; }
+    .integration-row .mark {
+      width: 3px; align-self: stretch; border-radius: 1px;
+      margin-left: -8px;
+    }
+    .integration-row .mark.ok { background: var(--ok); }
+    .integration-row .mark.warn { background: var(--warn); }
+    .integration-row .mark.idle { background: var(--fg-4); }
+
+    .api-key {
+      font-family: var(--font-mono);
+      font-size: var(--t-11);
+      background: var(--bg-2);
+      border: 1px solid var(--border-2);
+      border-radius: var(--r-3);
+      padding: 6px 10px;
+      color: var(--fg-1);
+      letter-spacing: 0.04em;
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script src="./js/alwon.js"></script>
+  <script>
+    const mainHtml = `
+      <div class="page-header">
+        <div class="crumb">
+          <span>SETUP</span><span class="sep">/</span>
+          <span class="accent">Settings</span><span class="sep">·</span>
+          <span class="mono dim">runtime config · org alwon-co</span>
+        </div>
+        <span class="pill ghost dim">env · production · co-bog-1</span>
+        <span class="pill ghost dim">14 services · 7 webhooks · 6 edges</span>
+        <div class="right">
+          <button class="btn tiny ghost">Audit log</button>
+          <button class="btn tiny">Export config</button>
+          <button class="btn tiny primary">Save changes · 3</button>
+        </div>
+      </div>
+
+      <div class="settings">
+
+        <!-- LEFT NAV -->
+        <div class="cell">
+          <div class="set-nav-section">
+            <h3>RUNTIME</h3>
+            <div class="set-nav-row active"><span class="nav-icon">${ALWON.icon('gear')}</span><span>General</span></div>
+            <div class="set-nav-row"><span class="nav-icon">${ALWON.icon('wave')}</span><span>Edge runtime</span></div>
+            <div class="set-nav-row"><span class="nav-icon">${ALWON.icon('pulse')}</span><span>Event routing</span></div>
+            <div class="set-nav-row"><span class="nav-icon">${ALWON.icon('eye')}</span><span>Vision pipeline</span></div>
+          </div>
+          <div class="set-nav-section">
+            <h3>OPERATIONS</h3>
+            <div class="set-nav-row"><span class="nav-icon">${ALWON.icon('alert')}</span><span>Incident rules</span></div>
+            <div class="set-nav-row"><span class="nav-icon">${ALWON.icon('card')}</span><span>Payments &amp; routing</span></div>
+            <div class="set-nav-row"><span class="nav-icon">${ALWON.icon('box')}</span><span>Inventory rules</span></div>
+            <div class="set-nav-row"><span class="nav-icon">${ALWON.icon('inbox')}</span><span>Messaging</span></div>
+          </div>
+          <div class="set-nav-section">
+            <h3>ORG</h3>
+            <div class="set-nav-row"><span class="nav-icon">${ALWON.icon('building')}</span><span>Organisation</span></div>
+            <div class="set-nav-row"><span class="nav-icon">${ALWON.icon('panels')}</span><span>Operators &amp; roles</span></div>
+            <div class="set-nav-row"><span class="nav-icon">${ALWON.icon('grid')}</span><span>Integrations</span></div>
+            <div class="set-nav-row"><span class="nav-icon">${ALWON.icon('refresh')}</span><span>API &amp; webhooks</span></div>
+            <div class="set-nav-row"><span class="nav-icon">${ALWON.icon('download')}</span><span>Data &amp; exports</span></div>
+          </div>
+          <div class="set-nav-section">
+            <h3>ADVANCED</h3>
+            <div class="set-nav-row"><span class="nav-icon">${ALWON.icon('search')}</span><span>Feature flags</span></div>
+            <div class="set-nav-row"><span class="nav-icon">${ALWON.icon('alert')}</span><span>Audit log</span></div>
+            <div class="set-nav-row"><span class="nav-icon">${ALWON.icon('gear')}</span><span>Danger zone</span></div>
+          </div>
+        </div>
+
+        <!-- CONTENT -->
+        <div class="cell" style="overflow-y: auto;">
+
+          <!-- GENERAL -->
+          <div class="sec">
+            <div class="sec-head">
+              <div>
+                <h2>Runtime · general</h2>
+                <div class="sub">org.runtime.general · last touched 2d 14h ago · jonathan.j</div>
+              </div>
+              <div><span class="pill info">3 unsaved</span></div>
+            </div>
+            <div class="form-grid">
+              <div class="lbl">Org identity<span class="sub">visible in audit log + webhook signatures</span></div>
+              <div class="ctl">
+                <div class="field" style="width: 240px;"><input value="ALWON · Colombia (alwon-co)" /></div>
+                <span class="mono dim s11">org_a4f81b</span>
+              </div>
+
+              <div class="lbl">Active region<span class="sub">primary cluster + data residency</span></div>
+              <div class="ctl">
+                <div class="field" style="width: 200px;"><select><option>co-bog-1 · Bogotá</option><option>co-mde-1 · Medellín</option></select></div>
+                <span class="pill ok">primary</span>
+                <span class="pill ghost dim">failover · co-mde-1</span>
+              </div>
+
+              <div class="lbl">Default store on operator login<span class="sub">overrides per-operator preference</span></div>
+              <div class="ctl">
+                <div class="field" style="width: 200px;"><select><option>BOG-001 · Chapinero</option><option>BOG-002 · Usaquén</option><option>operator preference</option></select></div>
+              </div>
+
+              <div class="lbl">Live event retention<span class="sub">hot retention applies to event stream + filterable queries</span></div>
+              <div class="ctl">
+                <div class="field" style="width: 100px;"><input value="90 days" /></div>
+                <span class="dim mono s11">hot</span>
+                <div class="field" style="width: 100px;"><input value="365 days" /></div>
+                <span class="dim mono s11">cold · s3</span>
+              </div>
+
+              <div class="lbl">Realtime tick rate<span class="sub">WebSocket frame batching · increase for low-bandwidth edges</span></div>
+              <div class="ctl">
+                <div class="field" style="width: 100px;"><input value="200 ms" /></div>
+                <span class="mono dim s11">default 200ms · current edge-co-3</span>
+              </div>
+
+              <div class="lbl">Operational clock<span class="sub">display in UI · events always stored UTC</span></div>
+              <div class="ctl">
+                <span class="toggle on"><span class="track"><span class="knob"></span></span><span class="lbl">show UTC</span></span>
+                <span class="toggle on"><span class="track"><span class="knob"></span></span><span class="lbl">show local · America/Bogota</span></span>
+                <span class="toggle"><span class="track"><span class="knob"></span></span><span class="lbl">show drift indicator</span></span>
+              </div>
+
+              <div class="lbl">Auto-acknowledge info incidents<span class="sub">applies only to severity:info created by auto-rules</span></div>
+              <div class="ctl">
+                <span class="toggle on"><span class="track"><span class="knob"></span></span><span class="lbl">enabled · after 5m</span></span>
+              </div>
+
+              <div class="lbl">Auto-resolve resolved incidents<span class="sub">close after monitoring window</span></div>
+              <div class="ctl">
+                <span class="toggle on"><span class="track"><span class="knob"></span></span><span class="lbl">enabled · 15m monitoring</span></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- API + WEBHOOKS -->
+          <div class="sec">
+            <div class="sec-head">
+              <div>
+                <h2>API &amp; webhooks</h2>
+                <div class="sub">org.api · 2 active keys · 7 webhook subscribers</div>
+              </div>
+              <div style="display: flex; gap: 6px;">
+                <button class="btn tiny">Rotate key</button>
+                <button class="btn tiny primary">New webhook</button>
+              </div>
+            </div>
+            <div class="form-grid">
+              <div class="lbl">API base URL<span class="sub">read-only · region-pinned</span></div>
+              <div class="ctl">
+                <span class="api-key">https://api.alwon.co/v1</span>
+                <span class="pill ok">healthy · p95 142ms</span>
+              </div>
+
+              <div class="lbl">Primary API key<span class="sub">scope · *.read · *.write · created 2024-09-14</span></div>
+              <div class="ctl">
+                <span class="api-key">sk_live_ALWN_4f81b…2e91 · ********c41a</span>
+                <button class="btn tiny ghost">Reveal</button>
+                <button class="btn tiny ghost">Rotate</button>
+              </div>
+
+              <div class="lbl">Read-only key<span class="sub">scope · *.read · used by partner-erp</span></div>
+              <div class="ctl">
+                <span class="api-key">sk_live_ALWN_88a02…0091 · ********c8a1</span>
+                <button class="btn tiny ghost">Reveal</button>
+                <button class="btn tiny ghost">Rotate</button>
+              </div>
+
+              <div class="lbl">IP allowlist (writes)<span class="sub">restrict mutation endpoints to known sources</span></div>
+              <div class="ctl">
+                <div class="field" style="width: 280px;"><input value="200.41.18.0/24, 200.41.19.0/24" /></div>
+                <span class="dim mono s11">2 CIDR</span>
+              </div>
+
+              <div class="lbl">Webhook signing<span class="sub">HMAC-SHA256 · header X-Alwon-Signature</span></div>
+              <div class="ctl">
+                <span class="toggle on"><span class="track"><span class="knob"></span></span><span class="lbl">enabled · v1</span></span>
+                <button class="btn tiny ghost">Rotate secret</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- INTEGRATIONS -->
+          <div class="sec">
+            <div class="sec-head">
+              <div>
+                <h2>Integrations</h2>
+                <div class="sub">8 connected · 2 partial · 0 failing</div>
+              </div>
+              <button class="btn tiny primary">Connect new</button>
+            </div>
+
+            <div>
+              <div class="integration-row">
+                <div class="mark ok"></div>
+                <div class="logo">ST</div>
+                <div>
+                  <div class="name">Stripe · acquirer</div>
+                  <div class="sub">connected 2024-09-14 · webhook · 218 tx/h · last event 14:22:47</div>
+                </div>
+                <span class="pill ok">CONNECTED</span>
+                <span class="dim mono s11">stripe.account_aa9c1</span>
+              </div>
+              <div class="integration-row">
+                <div class="mark ok"></div>
+                <div class="logo">CR</div>
+                <div>
+                  <div class="name">Credibanco · co-acquirer</div>
+                  <div class="sub">connected 2024-09-14 · MIT · settlement daily 23:00 UTC</div>
+                </div>
+                <span class="pill ok">CONNECTED</span>
+                <span class="dim mono s11">cb.merchant_88401</span>
+              </div>
+              <div class="integration-row">
+                <div class="mark warn"></div>
+                <div class="logo">PS</div>
+                <div>
+                  <div class="name">PSE · wallet · bank.transfer</div>
+                  <div class="sub">connected · 12 tx/h · ⚠ latency spike since 14:09 UTC</div>
+                </div>
+                <span class="pill warn">DEGRADED</span>
+                <span class="dim mono s11">pse.client_b40c</span>
+              </div>
+              <div class="integration-row">
+                <div class="mark ok"></div>
+                <div class="logo">NQ</div>
+                <div>
+                  <div class="name">Nequi · QR + push</div>
+                  <div class="sub">connected · 22 tx/h · push confirmation enabled</div>
+                </div>
+                <span class="pill ok">CONNECTED</span>
+                <span class="dim mono s11">nequi.partner_4a01</span>
+              </div>
+              <div class="integration-row">
+                <div class="mark ok"></div>
+                <div class="logo">DI</div>
+                <div>
+                  <div class="name">DIAN · Facturación Electrónica</div>
+                  <div class="sub">connected · 418 receipts/h · CUFE validation enabled</div>
+                </div>
+                <span class="pill ok">CONNECTED</span>
+                <span class="dim mono s11">dian.nit_900xxxxxx</span>
+              </div>
+              <div class="integration-row">
+                <div class="mark ok"></div>
+                <div class="logo">WA</div>
+                <div>
+                  <div class="name">WhatsApp Cloud API</div>
+                  <div class="sub">connected · 5 ev/h · operational reply only · sender +57·····0001</div>
+                </div>
+                <span class="pill ok">CONNECTED</span>
+                <span class="dim mono s11">wa.business_88431</span>
+              </div>
+              <div class="integration-row">
+                <div class="mark warn"></div>
+                <div class="logo">SU</div>
+                <div>
+                  <div class="name">supplier.api · restock</div>
+                  <div class="sub">connected · webhook · 2 retries 1h · p95 812ms</div>
+                </div>
+                <span class="pill warn">FLAKY</span>
+                <span class="dim mono s11">supplier.tenant_co_18</span>
+              </div>
+              <div class="integration-row">
+                <div class="mark ok"></div>
+                <div class="logo">SL</div>
+                <div>
+                  <div class="name">Slack · ops-runtime</div>
+                  <div class="sub">notifications · severity:warn≥ · 42 ev/h</div>
+                </div>
+                <span class="pill ok">CONNECTED</span>
+                <span class="dim mono s11">slack.team_T088401</span>
+              </div>
+              <div class="integration-row">
+                <div class="mark idle"></div>
+                <div class="logo">SH</div>
+                <div>
+                  <div class="name">Shopify · POS sync</div>
+                  <div class="sub">not connected · planned · roll-out CTG-001</div>
+                </div>
+                <span class="pill ghost dim">NOT CONNECTED</span>
+                <button class="btn tiny">Configure</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- OPERATORS -->
+          <div class="sec">
+            <div class="sec-head">
+              <div>
+                <h2>Operators &amp; roles</h2>
+                <div class="sub">14 active operators · 4 roles · single sign-on via okta · alwon.co</div>
+              </div>
+              <button class="btn tiny primary">Invite operator</button>
+            </div>
+            <table class="t-table">
+              <thead>
+                <tr>
+                  <th>OPERATOR</th>
+                  <th>ROLE</th>
+                  <th>STORES</th>
+                  <th>LAST SEEN</th>
+                  <th>2FA</th>
+                  <th>STATE</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td>Jonathan J. · jonathan@alwon.co</td><td><span class="pill info">lead-operator</span></td><td class="mono">BOG-001..003 · MDE-001</td><td class="mono">now · active</td><td><span class="pill ok">hardware</span></td><td><span class="pill ok">active</span></td></tr>
+                <tr><td>Sara B. · sara@alwon.co</td><td><span class="pill info">operator</span></td><td class="mono">BOG-001..002</td><td class="mono">2m ago</td><td><span class="pill ok">authenticator</span></td><td><span class="pill ok">active</span></td></tr>
+                <tr><td>Diego S. · diego@alwon.co</td><td><span class="pill info">operator</span></td><td class="mono">BOG-001</td><td class="mono">14m ago</td><td><span class="pill ok">authenticator</span></td><td><span class="pill ok">active</span></td></tr>
+                <tr><td>Luisa M. · luisa@alwon.co</td><td><span class="pill info">operator</span></td><td class="mono">BOG-002</td><td class="mono">1h ago</td><td><span class="pill ok">authenticator</span></td><td><span class="pill ok">active</span></td></tr>
+                <tr><td>Andrea R. · andrea@alwon.co</td><td><span class="pill ghost dim">read-only</span></td><td class="mono">all stores</td><td class="mono">4h ago</td><td><span class="pill ok">authenticator</span></td><td><span class="pill ok">active</span></td></tr>
+                <tr><td>Eng Audit · audit@alwon.co</td><td><span class="pill ghost dim">auditor</span></td><td class="mono">all stores · read</td><td class="mono">2d ago</td><td><span class="pill ok">hardware</span></td><td><span class="pill ok">active</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- DANGER -->
+          <div class="sec">
+            <div class="sec-head">
+              <div>
+                <h2>Danger zone</h2>
+                <div class="sub">org.danger · these operations require lead-operator + audit reason</div>
+              </div>
+            </div>
+            <div class="form-grid">
+              <div class="lbl">Quiesce runtime · BOG-001<span class="sub">stop accepting new sessions · current sessions complete normally</span></div>
+              <div class="ctl"><button class="btn tiny" style="color: var(--warn); border-color: rgba(255,181,71,0.35);">Quiesce store…</button></div>
+
+              <div class="lbl">Force resync · edge-co-3<span class="sub">flush replica.queue then reseed from cloud snapshot</span></div>
+              <div class="ctl"><button class="btn tiny">Force resync…</button></div>
+
+              <div class="lbl">Drop API key<span class="sub">irreversible · partners must rotate before traffic resumes</span></div>
+              <div class="ctl"><button class="btn tiny" style="color: var(--crit); border-color: rgba(229,72,77,0.40);">Drop key…</button></div>
+
+              <div class="lbl">Decommission store<span class="sub">marks store as offboarded · 30d data retention then purge</span></div>
+              <div class="ctl"><button class="btn tiny" style="color: var(--crit); border-color: rgba(229,72,77,0.40);">Decommission…</button></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    `;
+
+    ALWON.init({
+      active: 'settings',
+      main: mainHtml,
+    });
+  </script>
+</body>
+</html>

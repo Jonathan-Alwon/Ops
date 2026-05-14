@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=1440, initial-scale=1" />
+  <title>ALWON OS · Events · BOG-001</title>
+  <link rel="stylesheet" href="./css/alwon.css" />
+  <style>
+    .events-layout {
+      display: grid;
+      grid-template-columns: 220px minmax(0, 1fr) 380px;
+      grid-template-rows: auto auto 1fr;
+      gap: 1px;
+      background: var(--border-1);
+      height: calc(100vh - var(--topbar-h) - var(--statusbar-h) - 36px);
+    }
+    .events-layout > .cell { background: var(--bg-1); min-height: 0; display: flex; flex-direction: column; }
+    .events-layout .left  { grid-column: 1; grid-row: 1 / span 3; }
+    .events-layout .head  { grid-column: 2 / span 2; grid-row: 1; }
+    .events-layout .histo { grid-column: 2 / span 2; grid-row: 2; }
+    .events-layout .feed  { grid-column: 2; grid-row: 3; }
+    .events-layout .insp  { grid-column: 3; grid-row: 3; }
+
+    /* Filter sidebar */
+    .filter-section { padding: 12px 12px 4px; }
+    .filter-section h3 {
+      font-family: var(--font-mono); font-size: var(--t-10); color: var(--fg-3);
+      text-transform: uppercase; letter-spacing: 0.10em; margin: 0 0 6px 0; font-weight: 500;
+    }
+    .filter-row {
+      display: grid;
+      grid-template-columns: 14px 1fr auto;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 6px;
+      font-size: var(--t-12);
+      color: var(--fg-1);
+      border-radius: var(--r-3);
+      cursor: pointer;
+      user-select: none;
+    }
+    .filter-row:hover { background: var(--bg-2); color: var(--fg-0); }
+    .filter-row.active { background: var(--bg-3); color: var(--fg-0); }
+    .filter-row .chk {
+      width: 12px; height: 12px; border: 1px solid var(--border-3); border-radius: 2px; position: relative;
+    }
+    .filter-row.active .chk { background: var(--signal); border-color: var(--signal); }
+    .filter-row.active .chk::after {
+      content: ""; position: absolute; left: 2px; top: 0; width: 3px; height: 7px;
+      border-right: 1.5px solid #fff; border-bottom: 1.5px solid #fff; transform: rotate(45deg);
+    }
+    .filter-row .count {
+      font-family: var(--font-mono); font-size: var(--t-10); color: var(--fg-3);
+    }
+    .filter-row .dot-mark { width: 7px; height: 7px; border-radius: 50%; }
+
+    /* Toolbar */
+    .events-toolbar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border-1);
+    }
+
+    /* Histogram */
+    .events-histo {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border-1);
+      background: var(--bg-1);
+    }
+    .histo-svg { height: 64px; width: 100%; display: block; }
+    .histo-legend {
+      font-family: var(--font-mono);
+      font-size: var(--t-10);
+      color: var(--fg-3);
+      letter-spacing: 0.04em;
+      display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
+      min-width: 120px;
+    }
+    .histo-legend .big {
+      font-size: var(--t-16); color: var(--fg-0); letter-spacing: -0.005em;
+    }
+    .histo-legend .row { display: flex; align-items: center; gap: 6px; color: var(--fg-2); }
+
+    /* Event row dense */
+    .e-row {
+      display: grid;
+      grid-template-columns: 100px 70px 28px 70px 56px 1fr 80px;
+      gap: 10px;
+      align-items: center;
+      padding: 5px 12px;
+      border-bottom: 1px solid var(--border-1);
+      font-family: var(--font-mono);
+      font-size: var(--t-11);
+      color: var(--fg-1);
+      position: relative;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .e-row:hover { background: var(--bg-2); }
+    .e-row.selected { background: var(--bg-3); }
+    .e-row .ts { color: var(--fg-3); font-size: var(--t-10); }
+    .e-row .src { font-size: var(--t-10); text-transform: uppercase; letter-spacing: 0.10em; color: var(--fg-2); }
+    .e-row .src.checkout { color: var(--signal-2); }
+    .e-row .src.payment  { color: var(--telemetry); }
+    .e-row .src.vision   { color: var(--warn); }
+    .e-row .src.edge     { color: var(--ok); }
+    .e-row .src.inv      { color: var(--fg-1); }
+    .e-row .src.api      { color: var(--signal); }
+    .e-row .src.auth     { color: var(--signal); }
+    .e-row .src.lp       { color: var(--crit); }
+    .e-row .sev-pill {
+      width: 18px; height: 18px; display: grid; place-items: center;
+      font-size: 9px; font-weight: 700; letter-spacing: 0; border-radius: 2px;
+    }
+    .e-row .sev-pill.crit { background: var(--crit-bg); color: var(--crit); }
+    .e-row .sev-pill.warn { background: var(--warn-bg); color: var(--warn); }
+    .e-row .sev-pill.ok   { background: var(--ok-bg);   color: var(--ok); }
+    .e-row .sev-pill.info { background: var(--signal-bg); color: var(--signal); }
+    .e-row .store { color: var(--fg-2); font-size: var(--t-10); letter-spacing: 0.04em; }
+    .e-row .cat { font-size: var(--t-10); color: var(--fg-2); text-transform: uppercase; letter-spacing: 0.08em; }
+    .e-row .msg { color: var(--fg-0); overflow: hidden; text-overflow: ellipsis; font-size: var(--t-11); }
+    .e-row .conf { color: var(--fg-3); font-size: var(--t-10); text-align: right; }
+
+    /* Inspector */
+    .inspector { padding: 0; }
+    .insp-head {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border-1);
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .insp-head .id {
+      font-family: var(--font-mono); font-size: var(--t-11); color: var(--fg-2); letter-spacing: 0.04em;
+    }
+    .insp-head .ttl { color: var(--fg-0); font-size: var(--t-14); line-height: 1.3; }
+    .insp-tabs { display: flex; gap: 2px; padding: 0 8px; border-bottom: 1px solid var(--border-1); }
+    .insp-tabs .tab { padding: 6px 8px; font-size: var(--t-11); }
+    .insp-kv {
+      display: grid; grid-template-columns: 110px 1fr; gap: 6px 12px;
+      padding: 10px 14px; border-bottom: 1px solid var(--border-1);
+      font-size: var(--t-12);
+    }
+    .insp-kv .k {
+      font-family: var(--font-mono); font-size: var(--t-10);
+      color: var(--fg-3); text-transform: uppercase; letter-spacing: 0.08em;
+    }
+    .insp-kv .v { font-family: var(--font-mono); color: var(--fg-0); font-size: var(--t-11); word-break: break-all; }
+
+    .insp-json {
+      padding: 12px 14px;
+      font-family: var(--font-mono);
+      font-size: var(--t-11);
+      color: var(--fg-1);
+      line-height: 1.55;
+      border-bottom: 1px solid var(--border-1);
+    }
+    .insp-json .k { color: var(--telemetry); }
+    .insp-json .s { color: var(--fg-0); }
+    .insp-json .n { color: var(--signal-2); }
+    .insp-json .b { color: var(--warn); }
+
+    .insp-actions {
+      padding: 10px 14px;
+      display: flex; gap: 6px; flex-wrap: wrap;
+    }
+
+    .filter-chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 3px 8px;
+      border: 1px solid var(--border-2);
+      border-radius: 12px;
+      font-family: var(--font-mono);
+      font-size: var(--t-10);
+      color: var(--fg-1);
+      letter-spacing: 0.04em;
+      background: var(--bg-2);
+      cursor: pointer;
+    }
+    .filter-chip.active { background: var(--signal-bg); border-color: rgba(6, 144, 252, 0.5); color: var(--signal-2); }
+    .filter-chip .x { color: var(--fg-3); font-size: 10px; }
+
+    .live-toggle {
+      display: inline-flex; align-items: center; gap: 6px;
+      height: 22px;
+      padding: 0 8px 0 6px;
+      background: var(--ok-bg);
+      border: 1px solid rgba(30, 181, 94, 0.32);
+      color: var(--ok);
+      border-radius: var(--r-3);
+      font-family: var(--font-mono);
+      font-size: var(--t-10);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script src="./js/alwon.js"></script>
+  <script>
+    const mainHtml = `
+      <div class="page-header">
+        <div class="crumb">
+          <span>OPERATIONS</span>
+          <span class="sep">/</span>
+          <span class="accent">Events</span>
+          <span class="sep">·</span>
+          <span class="mono dim">realtime telemetry stream</span>
+        </div>
+        <span class="live-toggle"><span class="pulse ok"></span>LIVE TAIL · <span id="evRate">23.7</span>/s</span>
+        <span class="pill ghost dim">retain · 5,000 rows</span>
+        <span class="pill ghost dim">stream · ws ⇄ edge-co-3</span>
+        <div class="right">
+          <button class="btn tiny">Pause</button>
+          <button class="btn tiny">⇧ Save query</button>
+          <button class="btn tiny primary">Export NDJSON</button>
+        </div>
+      </div>
+
+      <div class="events-layout">
+
+        <!-- LEFT FILTERS -->
+        <div class="cell left" style="overflow-y: auto;">
+          <div class="filter-section">
+            <h3>SEVERITY</h3>
+            <div class="filter-row active"><span class="chk"></span><span><span class="dot crit"></span> CRIT</span><span class="count">2</span></div>
+            <div class="filter-row active"><span class="chk"></span><span><span class="dot warn"></span> WARN</span><span class="count">14</span></div>
+            <div class="filter-row active"><span class="chk"></span><span><span class="dot info"></span> INFO</span><span class="count">1,284</span></div>
+            <div class="filter-row active"><span class="chk"></span><span><span class="dot ok"></span> OK</span><span class="count">4,012</span></div>
+          </div>
+
+          <div class="filter-section">
+            <h3>SOURCE FAMILY</h3>
+            <div class="filter-row active"><span class="chk"></span><span><span class="dot info"></span> CHECKOUT</span><span class="count">1.4k</span></div>
+            <div class="filter-row active"><span class="chk"></span><span><span class="dot telem"></span> PAYMENT</span><span class="count">982</span></div>
+            <div class="filter-row active"><span class="chk"></span><span><span class="dot warn"></span> VISION</span><span class="count">418</span></div>
+            <div class="filter-row active"><span class="chk"></span><span><span class="dot ok"></span> EDGE</span><span class="count">2.1k</span></div>
+            <div class="filter-row active"><span class="chk"></span><span><span class="dot info"></span> INVENTORY</span><span class="count">643</span></div>
+            <div class="filter-row active"><span class="chk"></span><span><span class="dot info"></span> API</span><span class="count">3.8k</span></div>
+            <div class="filter-row"><span class="chk"></span><span><span class="dot idle"></span> LOSS-PREV</span><span class="count">12</span></div>
+            <div class="filter-row"><span class="chk"></span><span><span class="dot idle"></span> AUTH</span><span class="count">42</span></div>
+          </div>
+
+          <div class="filter-section">
+            <h3>STORE</h3>
+            <div class="filter-row active"><span class="chk"></span><span>BOG-001</span><span class="count">5.3k</span></div>
+            <div class="filter-row"><span class="chk"></span><span>BOG-002</span><span class="count">4.1k</span></div>
+            <div class="filter-row"><span class="chk"></span><span>BOG-003</span><span class="count">3.8k</span></div>
+            <div class="filter-row"><span class="chk"></span><span>MDE-001</span><span class="count">2.9k</span></div>
+            <div class="filter-row"><span class="chk"></span><span>CTG-001</span><span class="count">1.4k</span></div>
+          </div>
+
+          <div class="filter-section">
+            <h3>WINDOW</h3>
+            <div class="filter-row active"><span class="chk"></span><span>Live · tail</span></div>
+            <div class="filter-row"><span class="chk"></span><span>Last 15m</span></div>
+            <div class="filter-row"><span class="chk"></span><span>Last 1h</span></div>
+            <div class="filter-row"><span class="chk"></span><span>Last 24h</span></div>
+            <div class="filter-row"><span class="chk"></span><span>Custom range</span></div>
+          </div>
+
+          <div class="filter-section">
+            <h3>SAVED QUERIES</h3>
+            <div class="filter-row"><span class="chk"></span><span class="mono s11">vision.cam-7.degraded</span></div>
+            <div class="filter-row"><span class="chk"></span><span class="mono s11">payment.declined.5xx</span></div>
+            <div class="filter-row"><span class="chk"></span><span class="mono s11">edge.replay.backlog</span></div>
+            <div class="filter-row"><span class="chk"></span><span class="mono s11">checkout.abandoned.90s</span></div>
+            <div class="filter-row"><span class="chk"></span><span class="mono s11">inv.drift.gt05</span></div>
+          </div>
+        </div>
+
+        <!-- TOOLBAR -->
+        <div class="cell head" style="background: var(--bg-1);">
+          <div class="events-toolbar">
+            <div class="field" style="flex: 1; max-width: 540px;">
+              ${ALWON.icon('search', 'field-icon')}
+              <input value="source:* severity:>=warn store:BOG-001" />
+            </div>
+            <span class="filter-chip active">severity:≥warn <span class="x">×</span></span>
+            <span class="filter-chip active">store:BOG-001 <span class="x">×</span></span>
+            <span class="filter-chip">source:vision <span class="x">×</span></span>
+            <span class="filter-chip">+ add filter</span>
+            <div class="right" style="margin-left: auto; display: flex; gap: 6px;">
+              <span class="mono tiny dim">matched · <span class="up mono">5,312</span> · 0.42% sampled</span>
+              <button class="btn tiny ghost">⤓</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- HISTOGRAM -->
+        <div class="cell histo" style="background: var(--bg-1);">
+          <div class="events-histo">
+            <svg class="histo-svg" viewBox="0 0 1000 64" preserveAspectRatio="none">
+              <g stroke="#1c1f24" stroke-width="1">
+                <line x1="0" y1="20" x2="1000" y2="20"/>
+                <line x1="0" y1="40" x2="1000" y2="40"/>
+                <line x1="0" y1="60" x2="1000" y2="60"/>
+              </g>
+              ${generateHisto()}
+              <g font-family="ui-monospace, monospace" font-size="8" fill="#555a64" letter-spacing="0.04em">
+                <text x="2" y="60">14:25</text>
+                <text x="248" y="60">14:32</text>
+                <text x="498" y="60">14:39</text>
+                <text x="748" y="60">14:46</text>
+                <text x="940" y="60">14:53</text>
+              </g>
+            </svg>
+            <div class="histo-legend">
+              <div class="big mono"><span id="histoTotal">5,312</span></div>
+              <div class="row"><span class="dot info"></span>info · 1,284</div>
+              <div class="row"><span class="dot warn"></span>warn · 14</div>
+              <div class="row"><span class="dot crit"></span>crit · 2</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- FEED -->
+        <div class="cell feed" style="background: var(--bg-0);">
+          <div style="padding: 4px 12px; border-bottom: 1px solid var(--border-1); background: var(--bg-1);">
+            <div class="e-row" style="border-bottom: 0; padding: 4px 0; cursor: default;">
+              <span class="ts upper" style="color: var(--fg-3);">timestamp</span>
+              <span class="src">source</span>
+              <span class="sev-pill" style="background: transparent; color: var(--fg-3);">sev</span>
+              <span class="cat">category</span>
+              <span class="store">store</span>
+              <span class="msg upper" style="color: var(--fg-3); font-size: var(--t-10); letter-spacing: 0.08em;">message</span>
+              <span class="conf upper" style="color: var(--fg-3); font-size: var(--t-10); letter-spacing: 0.08em;">conf · attr</span>
+            </div>
+          </div>
+          <div id="evStream" style="flex: 1; overflow-y: auto;"></div>
+        </div>
+
+        <!-- INSPECTOR -->
+        <div class="cell insp" style="background: var(--bg-1); overflow-y: auto;">
+          <div class="insp-head">
+            <div class="id">EV · 8f3a2e91-72cd-4e08-bb19-c41a89d2 · <span class="fg-warn">vision.runtime</span></div>
+            <div class="ttl">cam-7 · concealment.flag · confidence 0.84 · auto-flagged for operator review</div>
+            <div style="display: flex; gap: 6px; margin-top: 4px;">
+              <span class="pill crit">SEVERITY · CRIT</span>
+              <span class="pill telem">CAM-7</span>
+              <span class="pill ghost dim">store · BOG-001</span>
+            </div>
+          </div>
+          <div class="insp-tabs tabbar" style="border-bottom: 1px solid var(--border-1); padding: 0 8px;">
+            <div class="tab active">Detail</div>
+            <div class="tab">Payload</div>
+            <div class="tab">Trace</div>
+            <div class="tab">Related <span class="tab-count">7</span></div>
+          </div>
+
+          <div class="insp-kv">
+            <div class="k">EVENT.ID</div>     <div class="v">8f3a2e91-72cd-4e08-bb19-c41a89d2</div>
+            <div class="k">TIMESTAMP</div>    <div class="v">14:22:45.001 UTC · <span class="dim">04m 17s ago</span></div>
+            <div class="k">SOURCE</div>       <div class="v fg-warn">vision.runtime / cam-7</div>
+            <div class="k">CATEGORY</div>     <div class="v">concealment.flag</div>
+            <div class="k">SEVERITY</div>     <div class="v fg-crit">CRIT · auto-elevated</div>
+            <div class="k">STORE</div>        <div class="v">BOG-001 · Bogotá · Chapinero</div>
+            <div class="k">EDGE</div>         <div class="v">edge-co-3 · primary</div>
+            <div class="k">CORRELATION</div>  <div class="v">INC-2401 · 6 events</div>
+            <div class="k">OPERATOR</div>     <div class="v">unattended · auto.flag</div>
+            <div class="k">TRACE</div>        <div class="v">trace_92ab4f… · 24 spans</div>
+          </div>
+
+          <div class="insp-json">
+            <div><span class="b">{</span></div>
+            <div>&nbsp;&nbsp;<span class="k">"event"</span>: <span class="s">"vision.concealment_flag"</span>,</div>
+            <div>&nbsp;&nbsp;<span class="k">"version"</span>: <span class="s">"v1"</span>,</div>
+            <div>&nbsp;&nbsp;<span class="k">"source"</span>: {</div>
+            <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"camera"</span>: <span class="s">"cam-7"</span>,</div>
+            <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"zone"</span>: <span class="s">"C"</span>,</div>
+            <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"infer_ms"</span>: <span class="n">612</span></div>
+            <div>&nbsp;&nbsp;<span class="b">}</span>,</div>
+            <div>&nbsp;&nbsp;<span class="k">"detection"</span>: {</div>
+            <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"track_id"</span>: <span class="s">"t_88401"</span>,</div>
+            <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"confidence"</span>: <span class="n">0.84</span>,</div>
+            <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"dwell_s"</span>: <span class="n">14.2</span>,</div>
+            <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"auto_flag"</span>: <span class="b">true</span></div>
+            <div>&nbsp;&nbsp;<span class="b">}</span>,</div>
+            <div>&nbsp;&nbsp;<span class="k">"context"</span>: {</div>
+            <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"basket_open"</span>: <span class="b">true</span>,</div>
+            <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"sku_visible"</span>: <span class="s">"0x7281"</span></div>
+            <div>&nbsp;&nbsp;<span class="b">}</span></div>
+            <div><span class="b">}</span></div>
+          </div>
+
+          <div class="insp-actions">
+            <button class="btn tiny primary">Open LP queue</button>
+            <button class="btn tiny">Acknowledge</button>
+            <button class="btn tiny">Suppress 1h</button>
+            <button class="btn tiny ghost">View frame</button>
+            <button class="btn tiny ghost">Copy ID</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    function generateHisto() {
+      const cols = 80;
+      const w = 1000 / cols;
+      let s = '';
+      let r = 1729;
+      const rng = () => { r = (r * 9301 + 49297) % 233280; return r / 233280; };
+      for (let i = 0; i < cols; i++) {
+        const h = 12 + rng() * 36;
+        const ok = h * (0.5 + rng() * 0.2);
+        const inf = h * 0.4;
+        const wn = rng() < 0.06 ? h * 0.6 : 0;
+        const cr = (i === 64 || i === 68) ? 18 : 0;
+        const x = i * w;
+        const baseY = 60 - ok;
+        s += `<rect x="${x.toFixed(1)}" y="${(baseY).toFixed(1)}" width="${(w - 0.6).toFixed(1)}" height="${ok.toFixed(1)}" fill="#1eb55e" opacity="0.85"/>`;
+        s += `<rect x="${x.toFixed(1)}" y="${(baseY - inf).toFixed(1)}" width="${(w - 0.6).toFixed(1)}" height="${inf.toFixed(1)}" fill="#0690fc" opacity="0.85"/>`;
+        if (wn) s += `<rect x="${x.toFixed(1)}" y="${(baseY - inf - wn).toFixed(1)}" width="${(w - 0.6).toFixed(1)}" height="${wn.toFixed(1)}" fill="#ffb547" opacity="0.95"/>`;
+        if (cr) s += `<rect x="${x.toFixed(1)}" y="${(baseY - inf - cr - 8).toFixed(1)}" width="${(w - 0.6).toFixed(1)}" height="${cr.toFixed(1)}" fill="#e5484d" opacity="0.95"/>`;
+      }
+      return s;
+    }
+
+    /* Detailed event row generator — looks like real production events */
+    const EVS = [
+      { ts:'14:22:47.124', src:'CHECKOUT', sev:'info', cat:'session.completed', store:'BOG-001', msg:'POS-03 · basket:7 · $ 32.180 · tender:cash', conf:'OP-011' },
+      { ts:'14:22:46.802', src:'PAYMENT',  sev:'ok',   cat:'authorize.success', store:'BOG-001', msg:'AUTH visa ****4019 · $ 14.300 · 142ms · stripe.co', conf:'POS-01' },
+      { ts:'14:22:46.451', src:'INV',      sev:'info', cat:'sku.movement',      store:'BOG-001', msg:'sku 0x7281 · −1 · shelf B-12 · zone B', conf:'auto' },
+      { ts:'14:22:45.918', src:'EDGE',     sev:'ok',   cat:'sync.replica',      store:'BOG-001', msg:'delta:18ev · ack 9ms · edge-co-3 → cloud', conf:'edge.replay' },
+      { ts:'14:22:45.001', src:'VISION',   sev:'crit', cat:'concealment.flag',  store:'BOG-001', msg:'cam-7 · track t_88401 · dwell 14.2s · → LP queue', conf:'conf 0.84' },
+      { ts:'14:22:44.882', src:'API',      sev:'info', cat:'POST /v1/sessions', store:'BOG-001', msg:'201 · 124ms · session.start · POS-04', conf:'OP-004' },
+      { ts:'14:22:44.222', src:'CHECKOUT', sev:'info', cat:'session.started',   store:'BOG-001', msg:'POS-01 · basket:0 · operator OP-007', conf:'andrés.r' },
+      { ts:'14:22:43.918', src:'PAYMENT',  sev:'warn', cat:'authorize.retry',   store:'BOG-001', msg:'AUTH pse · t/o 1.42s → retry · attempt 2/3', conf:'POS-05' },
+      { ts:'14:22:43.452', src:'EDGE',     sev:'ok',   cat:'heartbeat',         store:'BOG-001', msg:'edge-co-3 · rtt 14ms · cpu 31% · mem 1.8/8G', conf:'edge.health' },
+      { ts:'14:22:43.001', src:'CHECKOUT', sev:'info', cat:'scan.added',        store:'BOG-001', msg:'POS-08 · sku 0x4019 · "Coca Zero 600ml" · qty 1', conf:'OP-003' },
+      { ts:'14:22:42.812', src:'INV',      sev:'warn', cat:'oos.predicted',     store:'BOG-001', msg:'sku 0x9442 · ETA OOS 38m · auto-reorder.armed', conf:'forecast' },
+      { ts:'14:22:42.518', src:'API',      sev:'info', cat:'POST /v1/payments', store:'BOG-001', msg:'200 · 138ms · authorize · stripe.co', conf:'auth' },
+      { ts:'14:22:42.122', src:'VISION',   sev:'info', cat:'zone.entry',        store:'BOG-001', msg:'cam-1 · entrance · track t_88452 · conf 0.97', conf:'vision' },
+      { ts:'14:22:41.918', src:'EDGE',     sev:'ok',   cat:'sync.replica',      store:'BOG-001', msg:'delta:22ev · ack 7ms · edge-co-3 → cloud', conf:'edge.replay' },
+      { ts:'14:22:41.418', src:'CHECKOUT', sev:'info', cat:'tender.start',      store:'BOG-001', msg:'POS-02 · subtotal $ 58.420 · select:visa', conf:'OP-002' },
+      { ts:'14:22:41.001', src:'PAYMENT',  sev:'ok',   cat:'authorize.success', store:'BOG-001', msg:'AUTH mastercard ****5341 · $ 58.420 · 158ms', conf:'POS-02' },
+      { ts:'14:22:40.812', src:'INV',      sev:'info', cat:'sku.movement',      store:'BOG-001', msg:'sku 0x3187 · −1 · shelf C-02', conf:'auto' },
+      { ts:'14:22:40.392', src:'API',      sev:'info', cat:'GET /v1/inventory', store:'BOG-001', msg:'200 · 18ms · cache:hit · ttl 60s', conf:'cache' },
+      { ts:'14:22:40.001', src:'CHECKOUT', sev:'info', cat:'session.completed', store:'BOG-001', msg:'POS-02 · basket:11 · $ 58.420 · tender:visa', conf:'OP-002' },
+      { ts:'14:22:39.812', src:'VISION',   sev:'warn', cat:'pipeline.degraded', store:'BOG-001', msg:'cam-7 · p95 612ms → fallback model engaged', conf:'cam-7' },
+      { ts:'14:22:39.401', src:'EDGE',     sev:'ok',   cat:'sync.replica',      store:'BOG-001', msg:'delta:14ev · ack 8ms · edge-co-3 → cloud', conf:'edge.replay' },
+      { ts:'14:22:39.001', src:'CHECKOUT', sev:'info', cat:'scan.voided',       store:'BOG-001', msg:'POS-05 · sku 0xaa12 · qty 1 · override OP-009', conf:'diego.s' },
+      { ts:'14:22:38.812', src:'PAYMENT',  sev:'ok',   cat:'authorize.success', store:'BOG-001', msg:'AUTH nequi.qr · $ 21.100 · 312ms · push:confirm', conf:'POS-06' },
+      { ts:'14:22:38.541', src:'API',      sev:'info', cat:'POST /v1/incidents',store:'BOG-001', msg:'201 · 96ms · INC-2401 · severity:crit · auto', conf:'incident' },
+      { ts:'14:22:38.001', src:'INV',      sev:'info', cat:'sku.movement',      store:'BOG-001', msg:'sku 0x6f01 · −1 · cooler D-01', conf:'auto' },
+      { ts:'14:22:37.812', src:'VISION',   sev:'info', cat:'zone.dwell',        store:'BOG-001', msg:'cam-5 · POS lanes · track t_88438 · 24s', conf:'conf 0.94' },
+      { ts:'14:22:37.401', src:'EDGE',     sev:'ok',   cat:'heartbeat',         store:'BOG-001', msg:'edge-co-3 · rtt 13ms · 0 packet loss', conf:'edge.health' },
+      { ts:'14:22:37.018', src:'CHECKOUT', sev:'info', cat:'session.started',   store:'BOG-001', msg:'POS-07 · basket:0 · operator OP-006', conf:'pedro.r' },
+      { ts:'14:22:36.622', src:'PAYMENT',  sev:'ok',   cat:'capture',           store:'BOG-001', msg:'CAPTURE pse · settled $ 88.940 · POS-05', conf:'settled' },
+      { ts:'14:22:36.001', src:'API',      sev:'info', cat:'POST /v1/sessions', store:'BOG-001', msg:'201 · 118ms · session.start · POS-07', conf:'OP-006' },
+      { ts:'14:22:35.812', src:'INV',      sev:'info', cat:'cycle.scan',        store:'BOG-001', msg:'aisle A · 412 SKU scanned · 0 mismatch', conf:'auto' },
+      { ts:'14:22:35.401', src:'VISION',   sev:'crit', cat:'concealment.flag',  store:'BOG-001', msg:'cam-3 · track t_88410 · dwell 22.1s · → LP queue', conf:'conf 0.88' },
+      { ts:'14:22:34.918', src:'EDGE',     sev:'ok',   cat:'sync.replica',      store:'BOG-001', msg:'delta:11ev · ack 6ms · edge-co-3 → cloud', conf:'edge.replay' },
+      { ts:'14:22:34.401', src:'CHECKOUT', sev:'info', cat:'scan.added',        store:'BOG-001', msg:'POS-03 · sku 0x2c08 · "Bimbo Pan Tajado" · qty 1', conf:'OP-011' },
+      { ts:'14:22:34.001', src:'PAYMENT',  sev:'ok',   cat:'authorize.success', store:'BOG-001', msg:'AUTH amex ****8821 · $ 41.620 · 188ms', conf:'POS-08' },
+      { ts:'14:22:33.812', src:'API',      sev:'info', cat:'GET /v1/sku',       store:'BOG-001', msg:'200 · 14ms · cache:hit · sku 0x2c08', conf:'cache' },
+      { ts:'14:22:33.401', src:'INV',      sev:'info', cat:'sku.movement',      store:'BOG-001', msg:'sku 0xaa12 · −1 · shelf F-03 · zone F', conf:'auto' },
+    ];
+
+    function renderRow(e, selected) {
+      return `
+        <div class="e-row${selected ? ' selected' : ''}">
+          <span class="ts">${e.ts}</span>
+          <span class="src ${e.src.toLowerCase()}">${e.src}</span>
+          <span class="sev-pill ${e.sev}">${e.sev.toUpperCase().slice(0,1)}</span>
+          <span class="cat">${e.cat}</span>
+          <span class="store">${e.store}</span>
+          <span class="msg">${e.msg}</span>
+          <span class="conf">${e.conf}</span>
+        </div>
+      `;
+    }
+
+    ALWON.init({
+      active: 'events',
+      main: mainHtml,
+      onMounted() {
+        const stream = document.getElementById('evStream');
+        if (stream) {
+          stream.innerHTML = EVS.map((e, i) => renderRow(e, i === 4)).join('');
+
+          /* Live event prepending */
+          setInterval(() => {
+            const ev = ALWON.makeEvent();
+            const row = {
+              ts: ev.ts,
+              src: ev.src,
+              sev: ev.sev,
+              cat: ev.tone + '.live',
+              store: 'BOG-001',
+              msg: ev.msg,
+              conf: 'auto'
+            };
+            const wrap = document.createElement('div');
+            wrap.innerHTML = renderRow(row, false).trim();
+            const node = wrap.firstChild;
+            node.style.opacity = '0';
+            stream.insertBefore(node, stream.firstChild);
+            requestAnimationFrame(() => { node.style.transition = 'opacity 250ms ease-out'; node.style.opacity = '1'; });
+            while (stream.children.length > 80) stream.removeChild(stream.lastChild);
+          }, 1100);
+        }
+
+        /* Filter row toggle */
+        document.querySelectorAll('.filter-row').forEach(r => {
+          r.addEventListener('click', () => r.classList.toggle('active'));
+        });
+
+        /* Row click → selection */
+        document.addEventListener('click', (e) => {
+          const r = e.target.closest('.e-row');
+          if (!r || r.closest('#evStream') === null) return;
+          document.querySelectorAll('#evStream .e-row.selected').forEach(x => x.classList.remove('selected'));
+          r.classList.add('selected');
+        });
+      }
+    });
+  </script>
+</body>
+</html>

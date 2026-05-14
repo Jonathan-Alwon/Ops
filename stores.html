@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=1440, initial-scale=1" />
+  <title>ALWON OS · Stores · registry</title>
+  <link rel="stylesheet" href="./css/alwon.css" />
+  <style>
+    .stores-grid {
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      gap: 1px;
+      background: var(--border-1);
+    }
+    .stores-grid > .cell { background: var(--bg-1); display: flex; flex-direction: column; }
+
+    .store-card {
+      display: grid;
+      grid-template-columns: 1fr;
+      padding: 0;
+      border-bottom: 1px solid var(--border-1);
+      cursor: pointer;
+    }
+    .store-card:hover { background: var(--bg-2); }
+    .store-card.selected { background: var(--bg-3); }
+    .store-card .top {
+      display: grid;
+      grid-template-columns: 110px 1fr 80px 80px 80px 80px 80px 80px 100px;
+      gap: 12px;
+      align-items: center;
+      padding: 12px 14px;
+      font-size: var(--t-12);
+    }
+    .store-card .top .id { font-family: var(--font-mono); color: var(--fg-0); font-size: var(--t-12); }
+    .store-card .top .id .sub { display: block; font-family: var(--font-mono); font-size: var(--t-10); color: var(--fg-3); letter-spacing: 0.04em; margin-top: 2px; }
+    .store-card .top .nm { color: var(--fg-0); }
+    .store-card .top .nm .sub { color: var(--fg-3); font-family: var(--font-mono); font-size: var(--t-10); margin-top: 2px; letter-spacing: 0.02em; }
+    .store-card .top .num { font-family: var(--font-mono); text-align: right; color: var(--fg-1); font-size: var(--t-12); }
+    .store-card .top .num .lbl { display: block; font-size: var(--t-10); color: var(--fg-3); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 2px; }
+    .store-card .top .state { text-align: right; }
+    .store-card .strip {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
+      padding: 0 14px 10px;
+      gap: 12px;
+    }
+    .store-card .strip > div {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding-left: 10px;
+      border-left: 1px solid var(--border-1);
+    }
+    .store-card .strip .lbl {
+      font-family: var(--font-mono);
+      font-size: var(--t-10);
+      color: var(--fg-3);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .store-card .strip .v {
+      font-family: var(--font-mono);
+      font-size: var(--t-12);
+      color: var(--fg-0);
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script src="./js/alwon.js"></script>
+  <script>
+    const STORES = [
+      { id: 'BOG-001', name: 'Bogotá · Chapinero',     state: 'live', edge: 'edge-co-3', tx1h: 298, conv: 92.4, drift: 0.42, inc: 3, lanes: '18/22', alert: 'cam-7 deg', ver: '0.9.4-rc3', rtt: 14, uptime: '11d 4h' },
+      { id: 'BOG-002', name: 'Bogotá · Usaquén',       state: 'live', edge: 'edge-co-4', tx1h: 242, conv: 93.8, drift: 0.31, inc: 1, lanes: '14/18', alert: 'inv drift', ver: '0.9.4-rc3', rtt: 18, uptime: '11d 4h' },
+      { id: 'BOG-003', name: 'Bogotá · Salitre',       state: 'live', edge: 'edge-co-5', tx1h: 184, conv: 91.2, drift: 0.28, inc: 0, lanes: '10/14', alert: '—',          ver: '0.9.4-rc3', rtt: 22, uptime: '8d 11h' },
+      { id: 'MDE-001', name: 'Medellín · El Poblado',  state: 'live', edge: 'edge-co-7', tx1h: 168, conv: 90.8, drift: 0.38, inc: 1, lanes: '8/12',  alert: 'replay 412', ver: '0.9.4-rc3', rtt: 28, uptime: '6d 18h' },
+      { id: 'CTG-001', name: 'Cartagena · Bocagrande', state: 'sync', edge: 'edge-co-9', tx1h: 102, conv: 89.4, drift: 0.62, inc: 0, lanes: '6/10',  alert: 'syncing 78%', ver: '0.9.4-rc2', rtt: 42, uptime: '2h 04m' },
+      { id: 'CLO-001', name: 'Cali · Granada',         state: 'staged', edge: 'edge-co-11', tx1h: 0, conv: 0, drift: 0, inc: 0, lanes: '0/0', alert: 'awaiting commission', ver: '0.9.4-rc3', rtt: 0, uptime: 'staged 24h' },
+    ];
+
+    function statePill(s) {
+      if (s === 'live') return '<span class="pill ok"><span class="dot ok"></span>LIVE</span>';
+      if (s === 'sync') return '<span class="pill info"><span class="dot info"></span>SYNCING</span>';
+      if (s === 'staged') return '<span class="pill ghost dim">STAGED</span>';
+      return '<span class="pill warn">DEGRADED</span>';
+    }
+
+    function card(s, selected) {
+      return `
+        <div class="store-card ${selected ? 'selected' : ''}">
+          <div class="top">
+            <div class="id">${s.id}<span class="sub">${s.edge}</span></div>
+            <div class="nm">${s.name}<div class="sub">co · 4°36'N 74°4'W · 1800m elev</div></div>
+            <div class="num"><span class="lbl">TX · 1H</span>${s.tx1h}</div>
+            <div class="num"><span class="lbl">LANES</span>${s.lanes}</div>
+            <div class="num"><span class="lbl">CONV</span>${s.conv ? s.conv.toFixed(1) + '%' : '—'}</div>
+            <div class="num"><span class="lbl">DRIFT</span>${s.drift ? s.drift.toFixed(2) + '%' : '—'}</div>
+            <div class="num"><span class="lbl">INC</span><span class="${s.inc > 0 ? 'fg-warn' : ''}">${s.inc}</span></div>
+            <div class="num"><span class="lbl">RTT</span>${s.rtt ? s.rtt + 'ms' : '—'}</div>
+            <div class="state">${statePill(s.state)}</div>
+          </div>
+          <div class="strip">
+            <div><span class="lbl">RUNTIME</span><span class="v">${s.ver}</span></div>
+            <div><span class="lbl">UPTIME</span><span class="v">${s.uptime}</span></div>
+            <div><span class="lbl">OPS · SHIFT</span><span class="v">${s.state === 'live' ? '12 · opening' : '—'}</span></div>
+            <div><span class="lbl">ACTIVE ALERT</span><span class="v ${s.alert !== '—' ? 'fg-warn' : 'dim'}">${s.alert}</span></div>
+            <div><span class="lbl">LAST SYNC</span><span class="v">${s.state === 'staged' ? '—' : '14:22:47 UTC'}</span></div>
+          </div>
+        </div>
+      `;
+    }
+
+    const mainHtml = `
+      <div class="page-header">
+        <div class="crumb">
+          <span>OPERATIONS</span><span class="sep">/</span>
+          <span class="accent">Stores</span><span class="sep">·</span>
+          <span class="mono dim">multi-store registry · pilot fleet</span>
+        </div>
+        <span class="pill ok">5 LIVE</span>
+        <span class="pill info">1 SYNCING</span>
+        <span class="pill ghost dim">1 STAGED</span>
+        <div class="right">
+          <button class="btn tiny">Provision edge</button>
+          <button class="btn tiny">Roll-out plan</button>
+          <button class="btn tiny primary">New store</button>
+        </div>
+      </div>
+
+      <div class="tabbar">
+        <div class="tab active">Fleet <span class="tab-count">7</span></div>
+        <div class="tab">Live <span class="tab-count">5</span></div>
+        <div class="tab">Rollout <span class="tab-count">2</span></div>
+        <div class="tab">Region map</div>
+        <div class="tab">Commissioning</div>
+      </div>
+
+      <div class="kpi-strip" style="grid-template-columns: repeat(6, 1fr);">
+        <div class="kpi"><div class="kpi-label">STORES · LIVE</div><div class="kpi-value">5</div><div class="kpi-delta"><span class="delta up">▲ 2 · 30d</span></div></div>
+        <div class="kpi"><div class="kpi-label">TX · FLEET · 1H</div><div class="kpi-value">994</div><div class="kpi-delta"><span class="delta up">▲ 14%</span></div></div>
+        <div class="kpi"><div class="kpi-label">AVG CONV · FLEET</div><div class="kpi-value">91.5<span class="kpi-unit">%</span></div><div class="kpi-delta"><span class="delta up">▲ 1.2pp</span></div></div>
+        <div class="kpi"><div class="kpi-label">OPEN INC · FLEET</div><div class="kpi-value fg-warn">5</div><div class="kpi-delta"><span class="ref">3 crit · 2 warn</span></div></div>
+        <div class="kpi"><div class="kpi-label">EDGES PINNED</div><div class="kpi-value">4<span class="kpi-unit">/6</span></div><div class="kpi-delta"><span class="ref">2 canary · rc3</span></div></div>
+        <div class="kpi"><div class="kpi-label">UPGRADE WINDOW</div><div class="kpi-value">23:00 UTC</div><div class="kpi-delta"><span class="ref">CTG-001 · rc2 → rc3</span></div></div>
+      </div>
+
+      <div class="stores-grid">
+
+        <div class="cell">
+          <div class="panel-head">
+            <span class="label">CH 1</span>
+            <span class="title">Store fleet</span>
+            <span class="pill info">7</span>
+            <div class="right"><span class="dim mono">sort · last activity ↓</span></div>
+          </div>
+          <div>
+            ${STORES.map((s, i) => card(s, i === 0)).join('')}
+          </div>
+        </div>
+
+        <!-- Detail rail -->
+        <div class="cell">
+          <div class="panel-head">
+            <span class="label">CH 2</span>
+            <span class="title">BOG-001 · runtime</span>
+            <span class="pill ok">LIVE</span>
+          </div>
+          <div style="padding: 14px; border-bottom: 1px solid var(--border-1);">
+            <div class="up s14" style="font-family: var(--font-mono); letter-spacing: 0.04em;">BOG-001 · Bogotá · Chapinero</div>
+            <div class="mono dim s11" style="margin-top: 4px; letter-spacing: 0.04em;">Cra 11 #82-71 · 0.10ha pilot · since 2024-09-14</div>
+            <div style="display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap;">
+              <span class="pill ok">edge-co-3 · ok</span>
+              <span class="pill telem">22 LANES</span>
+              <span class="pill ghost dim">8 CAMS · 1 deg</span>
+              <span class="pill ghost dim">28,418 SKU</span>
+            </div>
+          </div>
+
+          <div class="panel-head">
+            <span class="label">CH 3</span>
+            <span class="title">Operational SLOs · 7d</span>
+          </div>
+          <div>
+            <div class="slo-card" style="border-bottom: 1px solid var(--border-1); padding: 12px; display: grid; grid-template-columns: 1fr auto;">
+              <div>
+                <div class="mono s11 up">checkout p95</div>
+                <div class="mono s10 dim">target ≤ 2.20s</div>
+                <div class="meter ok" style="margin-top: 6px;"><span style="width: 82%"></span></div>
+              </div>
+              <div class="mono s14 up" style="margin-left: 12px;">1.81s</div>
+            </div>
+            <div class="slo-card" style="border-bottom: 1px solid var(--border-1); padding: 12px; display: grid; grid-template-columns: 1fr auto;">
+              <div>
+                <div class="mono s11 up">auth success</div>
+                <div class="mono s10 dim">target ≥ 99.50%</div>
+                <div class="meter ok" style="margin-top: 6px;"><span style="width: 78%"></span></div>
+              </div>
+              <div class="mono s14 up" style="margin-left: 12px;">99.62%</div>
+            </div>
+            <div class="slo-card" style="border-bottom: 1px solid var(--border-1); padding: 12px; display: grid; grid-template-columns: 1fr auto;">
+              <div>
+                <div class="mono s11 up">vision pipeline p95</div>
+                <div class="mono s10 dim">target ≤ 220ms · BREACH</div>
+                <div class="meter warn" style="margin-top: 6px;"><span style="width: 96%"></span></div>
+              </div>
+              <div class="mono s14 fg-warn" style="margin-left: 12px;">612ms</div>
+            </div>
+            <div class="slo-card" style="border-bottom: 1px solid var(--border-1); padding: 12px; display: grid; grid-template-columns: 1fr auto;">
+              <div>
+                <div class="mono s11 up">edge sync lag</div>
+                <div class="mono s10 dim">target ≤ 100ms</div>
+                <div class="meter ok" style="margin-top: 6px;"><span style="width: 92%"></span></div>
+              </div>
+              <div class="mono s14 up" style="margin-left: 12px;">9ms</div>
+            </div>
+          </div>
+
+          <div class="panel-head">
+            <span class="label">CH 4</span>
+            <span class="title">Recent deploys</span>
+          </div>
+          <div style="font-family: var(--font-mono); font-size: var(--t-11); padding: 4px 0;">
+            <div class="t-row" style="border-bottom: 1px solid var(--border-1); padding: 7px 14px;">
+              <span class="ts dim">2d 14h</span><span class="msg up">runtime 0.9.4-rc3 · pinned</span><span class="meta">jonathan.j</span>
+            </div>
+            <div class="t-row" style="border-bottom: 1px solid var(--border-1); padding: 7px 14px;">
+              <span class="ts dim">5d</span><span class="msg up">vision.model.v2.4 · canary 50%</span><span class="meta">sara.b</span>
+            </div>
+            <div class="t-row" style="border-bottom: 1px solid var(--border-1); padding: 7px 14px;">
+              <span class="ts dim">7d</span><span class="msg up">payments.routing.v0.3 · rolled out</span><span class="meta">auto</span>
+            </div>
+            <div class="t-row" style="border-bottom: 1px solid var(--border-1); padding: 7px 14px;">
+              <span class="ts dim">11d</span><span class="msg up">edge image · 0.9.4-rc1 → rc2</span><span class="meta">jonathan.j</span>
+            </div>
+          </div>
+
+          <div style="padding: 12px 14px; display: flex; gap: 6px; flex-wrap: wrap;">
+            <button class="btn tiny primary">Open dashboard</button>
+            <button class="btn tiny">View events</button>
+            <button class="btn tiny">Operator schedule</button>
+            <button class="btn tiny ghost">Stop runtime</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    ALWON.init({
+      active: 'stores',
+      main: mainHtml,
+    });
+  </script>
+</body>
+</html>

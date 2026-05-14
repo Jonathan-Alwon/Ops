@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=1440, initial-scale=1" />
+  <title>ALWON OS · Incidents · queue</title>
+  <link rel="stylesheet" href="./css/alwon.css" />
+  <style>
+    .inc-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 480px;
+      gap: 1px;
+      background: var(--border-1);
+      height: calc(100vh - var(--topbar-h) - var(--statusbar-h) - 36px - 36px - 60px);
+      min-height: 600px;
+    }
+    .inc-layout > .cell { background: var(--bg-1); min-height: 0; display: flex; flex-direction: column; }
+    .inc-grid {
+      display: grid;
+      grid-template-columns: 80px 70px 1fr 110px 90px 120px 80px 50px;
+      align-items: center;
+      gap: 10px;
+      padding: 7px 12px;
+      border-bottom: 1px solid var(--border-1);
+      font-size: var(--t-12);
+      cursor: pointer;
+      position: relative;
+    }
+    .inc-grid:hover { background: var(--bg-2); }
+    .inc-grid.selected { background: var(--bg-3); }
+    .inc-grid.selected::before {
+      content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--signal);
+    }
+    .inc-grid .id { font-family: var(--font-mono); font-size: var(--t-11); color: var(--fg-0); }
+    .inc-grid .ttl { color: var(--fg-0); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--t-12); }
+    .inc-grid .source { font-family: var(--font-mono); font-size: var(--t-10); color: var(--fg-2); text-transform: uppercase; letter-spacing: 0.08em; }
+    .inc-grid .store  { font-family: var(--font-mono); font-size: var(--t-10); color: var(--fg-2); }
+    .inc-grid .owner  { font-family: var(--font-mono); font-size: var(--t-11); color: var(--fg-1); }
+    .inc-grid .age    { font-family: var(--font-mono); font-size: var(--t-11); color: var(--fg-2); text-align: right; }
+    .inc-grid .arrow  { color: var(--fg-3); text-align: right; }
+
+    .inc-grid.heading {
+      background: var(--bg-1);
+      border-bottom: 1px solid var(--border-2);
+      cursor: default;
+    }
+    .inc-grid.heading span {
+      font-family: var(--font-mono);
+      font-size: var(--t-10);
+      color: var(--fg-3);
+      text-transform: uppercase;
+      letter-spacing: 0.10em;
+    }
+    .inc-grid.heading .right { text-align: right; }
+
+    /* Timeline */
+    .timeline {
+      padding: 0 14px 12px 14px;
+      position: relative;
+    }
+    .timeline::before {
+      content: "";
+      position: absolute;
+      left: 22px;
+      top: 4px;
+      bottom: 12px;
+      width: 1px;
+      background: var(--border-2);
+    }
+    .tl-row {
+      display: grid;
+      grid-template-columns: 16px 86px 1fr;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 6px 0;
+      position: relative;
+    }
+    .tl-row .marker {
+      width: 9px; height: 9px; border-radius: 50%;
+      background: var(--bg-2); border: 1.5px solid var(--border-3);
+      margin-top: 4px;
+      z-index: 1;
+      grid-column: 1;
+      margin-left: 4px;
+    }
+    .tl-row.crit .marker { background: var(--crit); border-color: var(--crit); box-shadow: 0 0 0 3px var(--crit-bg); }
+    .tl-row.warn .marker { background: var(--warn); border-color: var(--warn); box-shadow: 0 0 0 3px var(--warn-bg); }
+    .tl-row.info .marker { background: var(--signal); border-color: var(--signal); }
+    .tl-row.ok   .marker { background: var(--ok); border-color: var(--ok); }
+    .tl-row .ts { font-family: var(--font-mono); font-size: var(--t-10); color: var(--fg-3); letter-spacing: 0.04em; padding-top: 3px; }
+    .tl-row .body { font-size: var(--t-12); color: var(--fg-1); line-height: 1.45; }
+    .tl-row .body .who { font-family: var(--font-mono); color: var(--fg-0); font-size: var(--t-11); }
+    .tl-row .body .extra { font-family: var(--font-mono); font-size: var(--t-10); color: var(--fg-3); margin-top: 2px; letter-spacing: 0.02em; }
+
+    .corr-row {
+      display: grid;
+      grid-template-columns: 100px 60px 1fr;
+      align-items: center;
+      gap: 12px;
+      padding: 6px 14px;
+      border-bottom: 1px solid var(--border-1);
+      font-family: var(--font-mono);
+      font-size: var(--t-11);
+      color: var(--fg-1);
+    }
+    .corr-row .ts { color: var(--fg-3); font-size: var(--t-10); }
+    .corr-row .src { font-size: var(--t-10); text-transform: uppercase; letter-spacing: 0.08em; color: var(--fg-2); }
+    .corr-row .msg { color: var(--fg-0); }
+
+    .group-bar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 12px;
+      background: var(--bg-2);
+      border-bottom: 1px solid var(--border-2);
+      font-family: var(--font-mono); font-size: var(--t-10);
+      letter-spacing: 0.10em; text-transform: uppercase; color: var(--fg-2);
+    }
+    .group-bar.crit { color: var(--crit); }
+    .group-bar.warn { color: var(--warn); }
+    .group-bar .count { color: var(--fg-3); }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script src="./js/alwon.js"></script>
+  <script>
+    const incidents = [
+      { id:'INC-2401', sev:'crit', src:'vision.runtime', store:'BOG-001', ttl:'cam-7 · concealment.flag confidence 0.84 · auto-elevated', owner:'jonathan.j', age:'04m 17s', state:'investigating' },
+      { id:'INC-2400', sev:'crit', src:'payments.processor', store:'BOG-001', ttl:'pse · 3 consecutive declines · 5xx burst', owner:'auto', age:'07m', state:'open' },
+      { id:'INC-2398', sev:'warn', src:'inv.forecast', store:'BOG-001', ttl:'sku 0x7281 · predicted OOS in 38m · auto-reorder armed', owner:'auto', age:'11m', state:'open' },
+      { id:'INC-2397', sev:'warn', src:'payments.processor', store:'BOG-001', ttl:'pse · latency spike p99 → 1.42s · 22m sustained', owner:'auto', age:'22m', state:'monitoring' },
+      { id:'INC-2395', sev:'warn', src:'vision.runtime', store:'BOG-001', ttl:'cam-3 · scan-avoid candidate · conf 0.78', owner:'sara.b', age:'34m', state:'investigating' },
+      { id:'INC-2392', sev:'info', src:'edge.replay', store:'MDE-001', ttl:'edge-co-7 · replay queue 412 events · draining', owner:'auto', age:'58m', state:'open' },
+      { id:'INC-2389', sev:'info', src:'edge.replay', store:'BOG-001', ttl:'edge-co-3 · replay queue drained · 1,284 ev caught up', owner:'auto', age:'1h 12m', state:'resolved' },
+      { id:'INC-2387', sev:'warn', src:'inv.shrink', store:'BOG-002', ttl:'sku 0x4019 · ledger drift 1.8% · cycle scan triggered', owner:'luisa.m', age:'1h 28m', state:'investigating' },
+      { id:'INC-2385', sev:'info', src:'loss-prevention', store:'BOG-001', ttl:'2 events flagged for operator review (cam-3 · cam-7)', owner:'sara.b', age:'1h 41m', state:'open' },
+      { id:'INC-2382', sev:'info', src:'api.gateway', store:'BOG-001', ttl:'/v1/payments · p95 → 412ms · brief spike · auto-recovered', owner:'auto', age:'2h 12m', state:'resolved' },
+      { id:'INC-2378', sev:'warn', src:'checkout', store:'BOG-001', ttl:'POS-05 · session hold 92s → operator intervention', owner:'diego.s', age:'2h 38m', state:'resolved' },
+    ];
+
+    function row(i, selected) {
+      const sevPill = i.sev === 'crit' ? 'crit' : i.sev === 'warn' ? 'warn' : 'info';
+      const sevLabel = i.sev === 'crit' ? 'CRIT' : i.sev === 'warn' ? 'WARN' : 'INFO';
+      return `
+        <div class="inc-grid ${selected ? 'selected' : ''}" data-id="${i.id}" data-sev="${i.sev}">
+          <span class="id">${i.id}</span>
+          <span class="pill ${sevPill}">${sevLabel}</span>
+          <span class="ttl">${i.ttl}</span>
+          <span class="source">${i.src}</span>
+          <span class="store">${i.store}</span>
+          <span class="owner">${i.owner === 'auto' ? '<span class="dim">auto</span>' : i.owner}</span>
+          <span class="age">${i.age}</span>
+          <span class="arrow">›</span>
+        </div>
+      `;
+    }
+
+    const mainHtml = `
+      <div class="page-header">
+        <div class="crumb">
+          <span>OPERATIONS</span><span class="sep">/</span>
+          <span class="accent">Incidents</span><span class="sep">·</span>
+          <span class="mono dim">queue · live</span>
+        </div>
+        <span class="pill crit">3 OPEN</span>
+        <span class="pill warn">5 WATCH</span>
+        <span class="pill ghost dim">avg ack · 2m 18s</span>
+        <span class="pill ghost dim">avg resolve · 26m</span>
+        <div class="right">
+          <button class="btn tiny">Auto-rules</button>
+          <button class="btn tiny">Runbooks</button>
+          <button class="btn tiny primary">Acknowledge all</button>
+        </div>
+      </div>
+
+      <div class="tabbar">
+        <div class="tab active" data-filter-target="sev" data-filter-value="all">All <span class="tab-count">${incidents.length}</span></div>
+        <div class="tab" data-filter-target="sev" data-filter-value="crit">Critical <span class="tab-count">2</span></div>
+        <div class="tab" data-filter-target="sev" data-filter-value="warn">Warning <span class="tab-count">4</span></div>
+        <div class="tab" data-filter-target="sev" data-filter-value="info">Info <span class="tab-count">5</span></div>
+        <div class="tab">Resolved · 24h <span class="tab-count">14</span></div>
+        <div class="tab">Auto-resolved <span class="tab-count">8</span></div>
+        <div class="tab">My queue <span class="tab-count">3</span></div>
+      </div>
+
+      <div class="kpi-strip" style="grid-template-columns: repeat(6, 1fr);">
+        <div class="kpi"><div class="kpi-label">OPEN · CRIT</div><div class="kpi-value fg-crit">2</div><div class="kpi-delta"><span class="ref">SLA · 5m ack</span></div></div>
+        <div class="kpi"><div class="kpi-label">OPEN · WARN</div><div class="kpi-value fg-warn">5</div><div class="kpi-delta"><span class="ref">SLA · 15m ack</span></div></div>
+        <div class="kpi"><div class="kpi-label">RESOLVED · 24H</div><div class="kpi-value">14</div><div class="kpi-delta"><span class="delta up">▲ 3 vs 7d avg</span></div></div>
+        <div class="kpi"><div class="kpi-label">MTTA · 7D</div><div class="kpi-value">2m 18s</div><div class="kpi-delta"><span class="delta up">▼ 22s</span></div></div>
+        <div class="kpi"><div class="kpi-label">MTTR · 7D</div><div class="kpi-value">26m</div><div class="kpi-delta"><span class="delta up">▼ 4m</span></div></div>
+        <div class="kpi"><div class="kpi-label">AUTO-RESOLVED</div><div class="kpi-value">61<span class="kpi-unit">%</span></div><div class="kpi-delta"><span class="delta up">▲ 4pp</span></div></div>
+      </div>
+
+      <div class="inc-layout">
+
+        <!-- QUEUE -->
+        <div class="cell">
+          <div class="inc-grid heading">
+            <span>ID</span><span>SEV</span><span>TITLE</span><span>SOURCE</span><span>STORE</span><span>OWNER</span><span class="right">AGE</span><span class="right">›</span>
+          </div>
+          <div style="flex: 1; overflow-y: auto;">
+            <div class="group-bar crit"><span class="dot crit"></span>CRITICAL · 2 open <span class="count">· SLA target ack ≤ 5m</span></div>
+            ${incidents.filter(i => i.sev === 'crit').map((i, ix) => row(i, ix === 0)).join('')}
+
+            <div class="group-bar warn"><span class="dot warn"></span>WARNING · 4 active <span class="count">· SLA target ack ≤ 15m</span></div>
+            ${incidents.filter(i => i.sev === 'warn').map(i => row(i, false)).join('')}
+
+            <div class="group-bar"><span class="dot info"></span>INFO · 5 <span class="count">· no SLA</span></div>
+            ${incidents.filter(i => i.sev === 'info').map(i => row(i, false)).join('')}
+          </div>
+        </div>
+
+        <!-- INCIDENT DETAIL -->
+        <div class="cell">
+          <div style="padding: 14px; border-bottom: 1px solid var(--border-1);">
+            <div class="mono s11 dim" style="margin-bottom: 4px;">INC-2401 · INVESTIGATING · auto-elevated 14:18:32 UTC</div>
+            <div class="s14 up" style="line-height: 1.35;">cam-7 · vision pipeline inference degradation · p95 → 612ms · fallback model engaged · auto-flagged for operator review</div>
+            <div style="display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap;">
+              <span class="pill crit">SEVERITY · CRIT</span>
+              <span class="pill telem">vision.runtime</span>
+              <span class="pill ghost dim">BOG-001 · Chapinero</span>
+              <span class="pill ghost dim">trace_92ab4f</span>
+              <span class="pill info">owner · jonathan.j</span>
+            </div>
+            <div style="display: flex; gap: 6px; margin-top: 10px;">
+              <button class="btn tiny primary">Acknowledge</button>
+              <button class="btn tiny">Take ownership</button>
+              <button class="btn tiny">Open runbook</button>
+              <button class="btn tiny ghost">Mute · 1h</button>
+              <button class="btn tiny ghost">Resolve</button>
+            </div>
+          </div>
+
+          <div class="panel-head">
+            <span class="label">CH 1</span>
+            <span class="title">Timeline</span>
+            <span class="pill ghost dim">9 events · 04m 17s</span>
+          </div>
+          <div class="timeline">
+            <div class="tl-row crit">
+              <span class="marker"></span>
+              <span class="ts">14:22:45</span>
+              <div class="body">
+                <span class="who">auto.flag</span> · concealment flag escalated to incident · confidence 0.84 · severity raised CRIT
+                <div class="extra">event_id 8f3a2e91-72cd-4e08</div>
+              </div>
+            </div>
+            <div class="tl-row warn">
+              <span class="marker"></span>
+              <span class="ts">14:18:32</span>
+              <div class="body">
+                <span class="who">vision.runtime</span> · cam-7 p95 breached SLO (220ms → 612ms) · model fallback engaged automatically
+                <div class="extra">slo: vision.pipeline.p95 · burn 4.8× · trigger:5m sustained</div>
+              </div>
+            </div>
+            <div class="tl-row info">
+              <span class="marker"></span>
+              <span class="ts">14:18:32</span>
+              <div class="body">
+                <span class="who">jonathan.j</span> · ack received via cmd palette
+                <div class="extra">channel: ops-runtime · ack_latency 18s</div>
+              </div>
+            </div>
+            <div class="tl-row info">
+              <span class="marker"></span>
+              <span class="ts">14:19:11</span>
+              <div class="body">
+                <span class="who">runtime.health</span> · gpu utilisation cam-7 → 94% · throttling soft-engaged
+              </div>
+            </div>
+            <div class="tl-row info">
+              <span class="marker"></span>
+              <span class="ts">14:20:02</span>
+              <div class="body">
+                <span class="who">runbook</span> · auto-applied · scale.vision-secondary 1 → 2 replicas
+                <div class="extra">runbook:vision.degradation · step 2/5 · ETA 90s</div>
+              </div>
+            </div>
+            <div class="tl-row info">
+              <span class="marker"></span>
+              <span class="ts">14:20:48</span>
+              <div class="body">
+                <span class="who">vision.secondary</span> · replica.2 healthy · accepting traffic
+              </div>
+            </div>
+            <div class="tl-row warn">
+              <span class="marker"></span>
+              <span class="ts">14:21:14</span>
+              <div class="body">
+                <span class="who">runtime.health</span> · cam-7 p95 → 412ms · improving · still above SLO
+              </div>
+            </div>
+            <div class="tl-row info">
+              <span class="marker"></span>
+              <span class="ts">14:22:01</span>
+              <div class="body">
+                <span class="who">webhook.outbound</span> · partner-erp/v1 · severity:crit · delivered 186ms · ack
+              </div>
+            </div>
+            <div class="tl-row crit">
+              <span class="marker"></span>
+              <span class="ts">14:22:45</span>
+              <div class="body">
+                <span class="who">vision.runtime</span> · second concealment flag (cam-3) · correlated → INC-2401
+                <div class="extra">7 correlated events · stream below</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel-head" style="border-top: 1px solid var(--border-1);">
+            <span class="label">CH 2</span>
+            <span class="title">Correlated events</span>
+            <span class="pill ghost dim">7 · trace_92ab4f</span>
+          </div>
+          <div>
+            <div class="corr-row"><span class="ts">14:22:45.001</span><span class="src fg-warn">VISION</span><span class="msg">cam-7 · concealment.flag · conf 0.84 · track t_88401</span></div>
+            <div class="corr-row"><span class="ts">14:22:38.541</span><span class="src fg-info">API</span><span class="msg">POST /v1/incidents · 201 · 96ms · INC-2401 created</span></div>
+            <div class="corr-row"><span class="ts">14:22:35.401</span><span class="src fg-warn">VISION</span><span class="msg">cam-3 · concealment.flag · conf 0.88 · track t_88410</span></div>
+            <div class="corr-row"><span class="ts">14:21:14.812</span><span class="src fg-warn">VISION</span><span class="msg">cam-7 · pipeline.degraded · p95 412ms · fallback active</span></div>
+            <div class="corr-row"><span class="ts">14:20:48.119</span><span class="src fg-ok">EDGE</span><span class="msg">vision.secondary · replica.2 ready · accepting</span></div>
+            <div class="corr-row"><span class="ts">14:20:02.001</span><span class="src fg-info">API</span><span class="msg">POST /v1/runbooks/exec · 200 · 218ms · vision.degradation</span></div>
+            <div class="corr-row"><span class="ts">14:18:32.412</span><span class="src fg-warn">VISION</span><span class="msg">cam-7 · slo.breach · p95 612ms · burn 4.8×</span></div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    ALWON.init({
+      active: 'incidents',
+      main: mainHtml,
+    });
+  </script>
+</body>
+</html>

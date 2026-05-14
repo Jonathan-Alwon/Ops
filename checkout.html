@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=1440, initial-scale=1" />
+  <title>ALWON OS · Checkout · runtime</title>
+  <link rel="stylesheet" href="./css/alwon.css" />
+  <style>
+    .ck-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 1px;
+      background: var(--border-1);
+    }
+    .ck-grid > .cell { background: var(--bg-1); display: flex; flex-direction: column; }
+    .ck-grid .span-2 { grid-column: span 2; }
+    .ck-grid .span-3 { grid-column: span 3; }
+
+    /* Lane grid */
+    .lane-grid {
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      gap: 1px;
+      background: var(--border-1);
+      padding: 1px;
+    }
+    .lane {
+      background: var(--bg-1);
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-height: 130px;
+      position: relative;
+    }
+    .lane.idle  { color: var(--fg-3); }
+    .lane.active { box-shadow: inset 2px 0 0 var(--signal); }
+    .lane.hold  { box-shadow: inset 2px 0 0 var(--warn); }
+    .lane.tender { box-shadow: inset 2px 0 0 var(--telemetry); }
+    .lane .pos-id {
+      font-family: var(--font-mono);
+      font-size: var(--t-11);
+      color: var(--fg-0);
+      letter-spacing: 0.04em;
+    }
+    .lane.idle .pos-id { color: var(--fg-3); }
+    .lane .op {
+      font-family: var(--font-mono);
+      font-size: var(--t-10);
+      color: var(--fg-2);
+    }
+    .lane .state-line {
+      display: flex; align-items: center; gap: 5px;
+      font-family: var(--font-mono);
+      font-size: var(--t-10);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-top: 2px;
+    }
+    .lane .basket {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: end;
+      gap: 4px;
+      margin-top: auto;
+    }
+    .lane .basket .items {
+      font-family: var(--font-mono);
+      font-size: var(--t-10);
+      color: var(--fg-3);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .lane .basket .total {
+      font-family: var(--font-mono);
+      font-size: var(--t-14);
+      color: var(--fg-0);
+      letter-spacing: -0.005em;
+    }
+    .lane .dur {
+      position: absolute; top: 8px; right: 10px;
+      font-family: var(--font-mono);
+      font-size: var(--t-10);
+      color: var(--fg-3);
+      letter-spacing: 0.04em;
+    }
+    .lane.idle .basket .total { color: var(--fg-3); }
+    .lane.idle .basket { display: none; }
+    .lane.idle .op::after { content: "lane idle · 02:14 since"; }
+    .lane.idle .op { color: var(--fg-3); }
+
+    /* Funnel */
+    .funnel-row {
+      display: grid;
+      grid-template-columns: 200px 1fr 80px;
+      align-items: center;
+      gap: 14px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border-1);
+    }
+    .funnel-row .lbl {
+      font-size: var(--t-12);
+      color: var(--fg-1);
+    }
+    .funnel-row .lbl .sub {
+      font-family: var(--font-mono);
+      font-size: var(--t-10);
+      color: var(--fg-3);
+      letter-spacing: 0.04em;
+      margin-top: 2px;
+    }
+    .funnel-bar {
+      height: 22px;
+      background: var(--bg-3);
+      border-radius: 2px;
+      position: relative;
+      overflow: hidden;
+    }
+    .funnel-bar .fill {
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      background: linear-gradient(90deg, var(--signal) 0%, var(--signal-2) 100%);
+    }
+    .funnel-row .pct {
+      font-family: var(--font-mono);
+      font-size: var(--t-14);
+      color: var(--fg-0);
+      text-align: right;
+      letter-spacing: -0.005em;
+    }
+    .funnel-row .pct .delta {
+      display: block;
+      font-size: var(--t-10);
+      color: var(--fg-3);
+      letter-spacing: 0.04em;
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script src="./js/alwon.js"></script>
+  <script>
+    function laneIdle(n) {
+      return `
+        <div class="lane idle">
+          <div class="pos-id">POS-${String(n).padStart(2,'0')}</div>
+          <div class="op"></div>
+          <div class="state-line dim-2">IDLE</div>
+        </div>
+      `;
+    }
+    function laneScan(n, op, opname, items, total, dur) {
+      return `
+        <div class="lane active">
+          <div class="dur mono">${dur}</div>
+          <div class="pos-id">POS-${String(n).padStart(2,'0')}</div>
+          <div class="op">${op} · ${opname}</div>
+          <div class="state-line fg-info"><span class="pulse info"></span>SCANNING</div>
+          <div class="basket"><span class="items">${items} items</span><span class="total">$ ${total}</span></div>
+        </div>
+      `;
+    }
+    function laneTender(n, op, opname, items, total, dur, tender) {
+      return `
+        <div class="lane tender">
+          <div class="dur mono">${dur}</div>
+          <div class="pos-id">POS-${String(n).padStart(2,'0')}</div>
+          <div class="op">${op} · ${opname}</div>
+          <div class="state-line fg-telem"><span class="pulse telem"></span>TENDER · ${tender}</div>
+          <div class="basket"><span class="items">${items} items</span><span class="total">$ ${total}</span></div>
+        </div>
+      `;
+    }
+    function laneHold(n, op, opname, items, total, dur, why) {
+      return `
+        <div class="lane hold">
+          <div class="dur mono">${dur}</div>
+          <div class="pos-id">POS-${String(n).padStart(2,'0')}</div>
+          <div class="op">${op} · ${opname}</div>
+          <div class="state-line fg-warn"><span class="pulse warn"></span>HOLD · ${why}</div>
+          <div class="basket"><span class="items">${items} items</span><span class="total">$ ${total}</span></div>
+        </div>
+      `;
+    }
+
+    const mainHtml = `
+      <div class="page-header">
+        <div class="crumb">
+          <span>OPERATIONS</span><span class="sep">/</span>
+          <span class="accent">Checkout</span><span class="sep">·</span>
+          <span class="mono dim">runtime · BOG-001</span>
+        </div>
+        <span class="pill ok"><span class="dot ok"></span>18/22 LANES</span>
+        <span class="pill ghost dim">avg session · 1m 48s</span>
+        <span class="pill ghost dim">p95 · 1.81s tender → close</span>
+        <span class="pill warn">1 ON HOLD</span>
+        <div class="right">
+          <button class="btn tiny">Floor map</button>
+          <button class="btn tiny">Export CSV</button>
+          <button class="btn tiny primary">Open POS</button>
+        </div>
+      </div>
+
+      <div class="tabbar">
+        <div class="tab active">Live lanes <span class="tab-count">22</span></div>
+        <div class="tab">Funnel</div>
+        <div class="tab">Sessions · 24h <span class="tab-count">1,284</span></div>
+        <div class="tab">Voids &amp; overrides <span class="tab-count">14</span></div>
+        <div class="tab">Operators <span class="tab-count">12</span></div>
+        <div class="tab">Performance</div>
+      </div>
+
+      <div class="kpi-strip" style="grid-template-columns: repeat(8, 1fr);">
+        <div class="kpi"><div class="kpi-label">ACTIVE LANES</div><div class="kpi-value">18<span class="kpi-unit">/22</span></div><div class="kpi-delta"><span class="delta up">▲ 3</span> <span class="ref">peak 23 · 14:08</span></div></div>
+        <div class="kpi"><div class="kpi-label">SESSIONS · 1H</div><div class="kpi-value">298</div><div class="kpi-delta"><span class="delta up">▲ 12%</span></div></div>
+        <div class="kpi"><div class="kpi-label">AVG BASKET</div><div class="kpi-value">$ 24.180</div><div class="kpi-delta"><span class="delta up">▲ 4.2%</span></div></div>
+        <div class="kpi"><div class="kpi-label">AVG DURATION</div><div class="kpi-value">1m 48s</div><div class="kpi-delta"><span class="delta up">▼ 9s</span></div></div>
+        <div class="kpi"><div class="kpi-label">CONVERSION</div><div class="kpi-value">92.4<span class="kpi-unit">%</span></div><div class="kpi-delta"><span class="delta up">▲ 0.8pp</span></div></div>
+        <div class="kpi"><div class="kpi-label">VOIDS · 1H</div><div class="kpi-value">3</div><div class="kpi-delta"><span class="ref">1.0% · in range</span></div></div>
+        <div class="kpi"><div class="kpi-label">OVERRIDES · 1H</div><div class="kpi-value">2</div><div class="kpi-delta"><span class="ref">policy ≤ 3/h</span></div></div>
+        <div class="kpi"><div class="kpi-label">TENDER MIX</div><div class="kpi-value mono">42/28/22/8</div><div class="kpi-delta"><span class="ref">card/qr/cash/pse</span></div></div>
+      </div>
+
+      <!-- LANE GRID -->
+      <div class="panel-head" style="border-top: 1px solid var(--border-1);">
+        <span class="label">CH 1</span>
+        <span class="title">POS lanes · live</span>
+        <span class="pill info">22 lanes</span>
+        <span class="pill ok">18 active</span>
+        <span class="pill ghost dim">4 idle</span>
+        <div class="right"><span class="live"><span class="pulse ok"></span>STREAMING · 1s</span></div>
+      </div>
+      <div class="lane-grid">
+        ${laneScan(1, 'OP-007', 'andrés.r',  3,  '14.300', '00:42')}
+        ${laneTender(2, 'OP-002', 'luisa.m',  11, '58.420', '02:12', 'visa')}
+        ${laneScan(3, 'OP-011', 'jhon.p',   7,  '32.180', '01:08')}
+        ${laneScan(4, 'OP-004', 'maría.l',  2,  '6.900',  '00:18')}
+        ${laneHold(5, 'OP-009', 'diego.s', 14, '88.940', '03:41', 'pse retry')}
+        ${laneTender(6, 'OP-012', 'sara.b', 5,  '21.100', '01:54', 'nequi')}
+        ${laneScan(7, 'OP-006', 'pedro.r', 1,  '2.400',  '00:08')}
+        ${laneScan(8, 'OP-003', 'camilo.a',9,  '41.620', '02:46')}
+        ${laneScan(9, 'OP-001', 'natalia.g',4, '18.120', '01:14')}
+        ${laneTender(10, 'OP-005', 'andrea.r',6,'26.840','01:38', 'visa')}
+        ${laneScan(11, 'OP-008', 'jorge.l', 12,'62.140', '03:18')}
+        ${laneScan(12, 'OP-010', 'andrés.m',2, '7.800',  '00:24')}
+        ${laneIdle(13)}
+        ${laneScan(14, 'OP-013', 'paola.s', 5, '22.660', '01:42')}
+        ${laneTender(15, 'OP-014', 'tomás.r',8,'38.180', '02:01', 'qr')}
+        ${laneScan(16, 'OP-015', 'isabella.p',3,'12.480','00:48')}
+        ${laneScan(17, 'OP-016', 'cristian.s',7,'34.220','02:08')}
+        ${laneScan(18, 'OP-017', 'valeria.q',4, '17.640','01:14')}
+        ${laneIdle(19)}
+        ${laneScan(20, 'OP-018', 'felipe.h',6, '28.840','01:56')}
+        ${laneIdle(21)}
+        ${laneIdle(22)}
+      </div>
+
+      <div class="ck-grid">
+
+        <!-- FUNNEL -->
+        <div class="cell span-2">
+          <div class="panel-head">
+            <span class="label">CH 2</span>
+            <span class="title">Checkout funnel · last 1h</span>
+            <span class="pill info">298 sessions</span>
+            <div class="right"><span class="dim mono">conversion · 92.4% · ▲ 0.8pp</span></div>
+          </div>
+          <div>
+            <div class="funnel-row">
+              <div class="lbl">Session opened<div class="sub">scan started · basket touched</div></div>
+              <div class="funnel-bar"><div class="fill" style="width: 100%;"></div></div>
+              <div class="pct">298<span class="delta">100%</span></div>
+            </div>
+            <div class="funnel-row">
+              <div class="lbl">Items scanned ≥ 1<div class="sub">first SKU added to basket</div></div>
+              <div class="funnel-bar"><div class="fill" style="width: 96.6%;"></div></div>
+              <div class="pct">288<span class="delta">96.6% · −10</span></div>
+            </div>
+            <div class="funnel-row">
+              <div class="lbl">Scan completed<div class="sub">basket closed for tender</div></div>
+              <div class="funnel-bar"><div class="fill" style="width: 95.0%;"></div></div>
+              <div class="pct">283<span class="delta">95.0% · −5</span></div>
+            </div>
+            <div class="funnel-row">
+              <div class="lbl">Tender initiated<div class="sub">payment method selected</div></div>
+              <div class="funnel-bar"><div class="fill" style="width: 94.3%;"></div></div>
+              <div class="pct">281<span class="delta">94.3% · −2</span></div>
+            </div>
+            <div class="funnel-row">
+              <div class="lbl">Authorisation success<div class="sub">processor returned ok</div></div>
+              <div class="funnel-bar"><div class="fill" style="width: 92.6%;"></div></div>
+              <div class="pct">276<span class="delta">92.6% · −5</span></div>
+            </div>
+            <div class="funnel-row" style="border-bottom: 0;">
+              <div class="lbl">Tx completed<div class="sub">receipt issued · ledger committed</div></div>
+              <div class="funnel-bar"><div class="fill" style="width: 92.4%;"></div></div>
+              <div class="pct">275<span class="delta">92.4% · −1</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- DROP-OFF REASONS -->
+        <div class="cell">
+          <div class="panel-head">
+            <span class="label">CH 3</span>
+            <span class="title">Drop-off &amp; failures · 1h</span>
+            <span class="pill warn">23 events</span>
+          </div>
+          <div style="padding: 12px 14px;">
+            <div style="display: grid; grid-template-columns: 1fr auto; gap: 10px 8px; align-items: center;">
+              <div class="mono s11 up">basket.abandoned (no scan)</div>
+              <div class="mono s12 fg-warn">10</div>
+              <div class="meter warn" style="grid-column: span 2;"><span style="width: 43%"></span></div>
+
+              <div class="mono s11 up" style="margin-top: 4px;">basket.abandoned (post-scan)</div>
+              <div class="mono s12 fg-warn">5</div>
+              <div class="meter warn" style="grid-column: span 2;"><span style="width: 22%"></span></div>
+
+              <div class="mono s11 up" style="margin-top: 4px;">tender.declined</div>
+              <div class="mono s12 fg-crit">5</div>
+              <div class="meter crit" style="grid-column: span 2;"><span style="width: 22%"></span></div>
+
+              <div class="mono s11 up" style="margin-top: 4px;">processor.timeout</div>
+              <div class="mono s12 fg-warn">2</div>
+              <div class="meter warn" style="grid-column: span 2;"><span style="width: 9%"></span></div>
+
+              <div class="mono s11 up" style="margin-top: 4px;">override.required</div>
+              <div class="mono s12 dim">1</div>
+              <div class="meter" style="grid-column: span 2;"><span style="width: 4%"></span></div>
+            </div>
+            <div class="mono tiny dim" style="margin-top: 18px; letter-spacing: 0.06em; text-transform: uppercase;">REASON DETAIL · last 30m</div>
+            <div class="mono s11" style="color: var(--fg-1); line-height: 1.6; margin-top: 4px;">
+              <div>14:21 · pos-05 · pse t/o → retry → ok (1m 14s)</div>
+              <div>14:17 · pos-08 · amex decline 05 → cash</div>
+              <div>14:11 · pos-03 · nequi push.miss → re-attempt</div>
+              <div>14:08 · pos-12 · scan-avoid prompt · override OP-002</div>
+              <div>14:02 · pos-06 · basket abandoned · 92s idle</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- OPERATORS -->
+        <div class="cell span-3">
+          <div class="panel-head">
+            <span class="label">CH 4</span>
+            <span class="title">Operator performance · shift 14:00–22:00</span>
+            <span class="pill info">12 operators</span>
+            <div class="right"><span class="dim mono">avg scan · 12.4s/item · target ≤ 16s</span></div>
+          </div>
+          <table class="t-table">
+            <thead>
+              <tr>
+                <th>OPERATOR</th>
+                <th>LANE</th>
+                <th>SESSIONS · SHIFT</th>
+                <th>AVG BASKET</th>
+                <th>AVG SCAN · ITEM</th>
+                <th>VOIDS</th>
+                <th>OVERRIDES</th>
+                <th>AUTH SUCCESS</th>
+                <th>STATE</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="mono">OP-007</span> · andrés.r</td>
+                <td class="mono">POS-01</td>
+                <td class="num">28</td>
+                <td class="num">$ 22.140</td>
+                <td class="num">11.4s</td>
+                <td class="num">0</td>
+                <td class="num">0</td>
+                <td class="num fg-ok">100%</td>
+                <td><span class="pill ok">SCANNING</span></td>
+              </tr>
+              <tr>
+                <td><span class="mono">OP-002</span> · luisa.m</td>
+                <td class="mono">POS-02</td>
+                <td class="num">31</td>
+                <td class="num">$ 28.420</td>
+                <td class="num">10.8s</td>
+                <td class="num">1</td>
+                <td class="num">0</td>
+                <td class="num fg-ok">99.2%</td>
+                <td><span class="pill telem">TENDER</span></td>
+              </tr>
+              <tr>
+                <td><span class="mono">OP-009</span> · diego.s</td>
+                <td class="mono">POS-05</td>
+                <td class="num">22</td>
+                <td class="num">$ 41.620</td>
+                <td class="num">14.2s</td>
+                <td class="num">2</td>
+                <td class="num">1</td>
+                <td class="num fg-warn">94.3%</td>
+                <td><span class="pill warn">HOLD</span></td>
+              </tr>
+              <tr>
+                <td><span class="mono">OP-012</span> · sara.b</td>
+                <td class="mono">POS-06</td>
+                <td class="num">26</td>
+                <td class="num">$ 18.180</td>
+                <td class="num">11.9s</td>
+                <td class="num">0</td>
+                <td class="num">0</td>
+                <td class="num fg-ok">100%</td>
+                <td><span class="pill telem">TENDER</span></td>
+              </tr>
+              <tr>
+                <td><span class="mono">OP-011</span> · jhon.p</td>
+                <td class="mono">POS-03</td>
+                <td class="num">24</td>
+                <td class="num">$ 24.180</td>
+                <td class="num">12.4s</td>
+                <td class="num">0</td>
+                <td class="num">0</td>
+                <td class="num fg-ok">99.6%</td>
+                <td><span class="pill ok">SCANNING</span></td>
+              </tr>
+              <tr>
+                <td><span class="mono">OP-014</span> · tomás.r</td>
+                <td class="mono">POS-15</td>
+                <td class="num">19</td>
+                <td class="num">$ 32.140</td>
+                <td class="num">13.1s</td>
+                <td class="num">0</td>
+                <td class="num">1</td>
+                <td class="num fg-ok">98.4%</td>
+                <td><span class="pill telem">TENDER</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+
+    ALWON.init({
+      active: 'checkout',
+      main: mainHtml,
+    });
+  </script>
+</body>
+</html>
